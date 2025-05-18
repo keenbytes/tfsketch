@@ -9,3 +9,20 @@ It’s still under active development — new version and documentation are comi
 
 ## Building
 Run `go build -o tfsketch` to compile the binary.
+
+## Running
+Check below help message for `module` command:
+
+    Usage:  tfsketch module [FLAGS] MODULE_DIR OUTPUT_FILE
+
+`MODULE_DIR` is a path to directory containing Terraform module, and `OUTPUT_FILE` is path to a file where output SVG should be written, eg. `./diagram.svg`.
+
+## TODO
+- [ ] Add `module` blocks
+- [ ] Add `provider` blocks
+- [ ] Introduce a config file
+- [ ] Allow showing only selected resources
+- [ ] Allow replacing resources with custom items or text
+- [ ] Distinguish optional and required inputs; display required ones first
+- [ ] On item mouseover, display its links to other items
+- [ ] Add examples
