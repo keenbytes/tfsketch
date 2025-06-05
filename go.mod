@@ -1,10 +1,10 @@
-module gopkg.pl/keenbytes/tfsketch
+module github.com/keenbytes/tfsketch
 
 go 1.22.1
 
 require (
 	github.com/hashicorp/hcl/v2 v2.23.0
-	gopkg.pl/mikogs/broccli/v3 v3.0.1
+	github.com/keenbytes/broccli/v3 v3.0.2
 )
 
 require (

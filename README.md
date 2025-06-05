@@ -1,6 +1,6 @@
 # tfsketch
 
-[![Go Reference](https://pkg.go.dev/badge/gopkg.pl/keenbytes/tfsketch.svg)](https://pkg.go.dev/gopkg.pl/keenbytes/tfsketch) [![Go Report Card](https://goreportcard.com/badge/gopkg.pl/keenbytes/tfsketch)](https://goreportcard.com/report/gopkg.pl/keenbytes/tfsketch)
+[![Go Reference](https://pkg.go.dev/badge/github.com/keenbytes/tfsketch.svg)](https://pkg.go.dev/github.com/keenbytes/tfsketch) [![Go Report Card](https://goreportcard.com/badge/github.com/keenbytes/tfsketch)](https://goreportcard.com/report/github.com/keenbytes/tfsketch)
 
 ![tfsketch](tfsketch.png "tfsketch")
 

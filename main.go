@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"gopkg.pl/mikogs/broccli/v3"
+	"github.com/keenbytes/broccli/v3"
 )
 
 func main() {
