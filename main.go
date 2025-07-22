@@ -2,18 +2,27 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
 	"github.com/keenbytes/broccli/v3"
 )
 
-func main() {
-	cli := broccli.NewBroccli("tfdiagram", "Generate SVG from terraform files", "Mikolaj Gasior <m@gasior.dev>")
+var (
+	errTerraformTraverse = errors.New("error traversing dir with tf code")
+)
 
-	cmd := cli.Command("module", "Generate an SVG diagram from a terraform module", drawHandler)
-	cmd.Arg("module-dir", "MODULE_DIR", "Path to terraform module", broccli.TypePathFile, broccli.IsDirectory|broccli.IsExistent|broccli.IsRequired)
-	cmd.Arg("output-file", "OUTPUT_FILE", "Path to output SVG file", broccli.TypePathFile, broccli.IsRequired)
+func errorTraversingTerraformDir(err error) error {
+	return fmt.Errorf("%w: %s", errTerraformTraverse, err.Error())
+}
+
+func main() {
+	cli := broccli.NewBroccli("tfsketch", "Generate diagram from Terraform files", "Mikolaj Gasior <m@gasior.dev>")
+
+	cmd := cli.Command("gen", "Generate diagram", genHandler)
+	cmd.Arg("path", "DIR", "Path to directory with terraform code", broccli.TypePathFile, broccli.IsDirectory|broccli.IsExistent|broccli.IsRequired)
+	cmd.Arg("type", "RESOURCE_TYPE", "Type of the resource to search for", broccli.TypeString, broccli.IsRequired)
 
 	_ = cli.Command("version", "Prints version", versionHandler)
 	if len(os.Args) == 2 && (os.Args[1] == "-v" || os.Args[1] == "--version") {
@@ -23,23 +32,20 @@ func main() {
 	os.Exit(cli.Run(context.Background()))
 }
 
-func drawHandler(ctx context.Context, c *broccli.Broccli) int {
-	moduleDir := c.Arg("module-dir")
-	outputFile := c.Arg("output-file")
+func genHandler(_ context.Context, cli *broccli.Broccli) int {
+	terraformDir := cli.Arg("path")
+	resourceType := cli.Arg("type")
 
-	module, err := parseTerraformModule(moduleDir)
+	err := traverseTerraformDirectory(terraformDir, resourceType)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to parse module: %v\n", err)
+		fmt.Fprintf(os.Stderr, "%s", errorTraversingTerraformDir(err))
 		return 1
 	}
-
-	svg := generateSvg(module)
-	os.WriteFile(outputFile, []byte(svg), 0644)
 
 	return 0
 }
 
-func versionHandler(ctx context.Context, c *broccli.Broccli) int {
+func versionHandler(_ context.Context, _ *broccli.Broccli) int {
 	fmt.Fprintf(os.Stdout, VERSION+"\n")
 	return 0
 }
