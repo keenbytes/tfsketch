@@ -19,15 +19,15 @@ var (
 )
 
 type Directory struct {
-	FullPath string
+	FullPath    string
 	DisplayPath string
-	Resources map[string]*Resource
+	Resources   map[string]*Resource
 }
 
 type Resource struct {
-	Type string
-	Name string
-	FieldName string
+	Type       string
+	Name       string
+	FieldName  string
 	TfFileName string
 }
 
@@ -38,13 +38,26 @@ func traverseTerraformDirectory(root string, resourceType string) error {
 		if err != nil {
 			return fmt.Errorf("%w: %w", errTfDirWalk, err)
 		}
+
+		// Skip directories that contain "modules" in their path
+		relPath, _ := filepath.Rel(root, path)
+		pathParts := strings.Split(filepath.ToSlash(relPath), "/")
+		for _, part := range pathParts {
+			if part == "modules" {
+				if d.IsDir() {
+					return fs.SkipDir // Skip entire directory
+				}
+				return nil // Skip file
+			}
+		}
+
 		if !d.IsDir() && strings.HasSuffix(d.Name(), ".tf") {
 			dir := filepath.Dir(path)
 			dirWithoutRoot := strings.Replace(dir, root, "", 1)
 			dirs[dir] = &Directory{
-				FullPath: dir,
+				FullPath:    dir,
 				DisplayPath: dirWithoutRoot,
-				Resources: map[string]*Resource{},
+				Resources:   map[string]*Resource{},
 			}
 		}
 		return nil
@@ -85,7 +98,7 @@ func processDirs(dirs map[string]*Directory, resourceTypeToMatch string) {
 			})
 
 			for _, block := range content.Blocks {
-				if len(block.Labels) != 2 || block.Type != "resource"{
+				if len(block.Labels) != 2 || block.Type != "resource" {
 					continue
 				}
 				resourceType := block.Labels[0]
@@ -95,9 +108,9 @@ func processDirs(dirs map[string]*Directory, resourceTypeToMatch string) {
 					// todo: handle error
 
 					directory.Resources[resourceName] = &Resource{
-						Type: resourceType,
-						Name: resourceName,
-						FieldName: nameField,
+						Type:       resourceType,
+						Name:       resourceName,
+						FieldName:  nameField,
 						TfFileName: file.Name(),
 					}
 				}
@@ -110,11 +123,11 @@ var (
 	TfResourceWithName = &hcl.BodySchema{
 		Attributes: []hcl.AttributeSchema{
 			{
-				Name: "name",
+				Name:     "name",
 				Required: false,
 			},
 			{
-				Name: "id",
+				Name:     "id",
 				Required: false,
 			},
 		},
@@ -130,7 +143,7 @@ func getResourceNameField(block *hcl.Block) (string, error) {
 	}
 
 	nameField := ""
-	
+
 	for attrName, attr := range bodyContent.Attributes {
 		if attrName == "name" {
 			if expr, ok := attr.Expr.(*hclsyntax.TemplateExpr); ok {
@@ -140,10 +153,9 @@ func getResourceNameField(block *hcl.Block) (string, error) {
 				if err == nil {
 					raw := string(source[srcRange.Start.Byte:srcRange.End.Byte])
 					nameField = raw
+					nameField = strings.TrimLeft(nameField, "\"")
+					nameField = strings.TrimRight(nameField, "\"")
 				}
-			} else {
-				// Handle plain expressions (e.g., just "foo")
-				nameField = attr.Expr.Range().String()
 			}
 		}
 	}
@@ -168,11 +180,11 @@ flowchart LR
 		elementPathName := strings.ReplaceAll(dir.DisplayPath, "/", "_")
 		elementPathName = clearString(elementPathName)
 
-		for _, resource := range dir.Resources{
+		for _, resource := range dir.Resources {
 			elementResourceName := elementPathName + "_" + clearString(resource.Name)
 			elementResourceFieldName := elementResourceName + "_FieldName"
 
-			_, _ = mermaidDiagram.WriteString(fmt.Sprintf("  %s[\"%s\"]:::tf-path --> %s[\"%s\"]:::tf-resource-name --> %s[%s]:::aws-resource\n", elementPathName, dir.DisplayPath, elementResourceName, resource.Name, elementResourceFieldName, resource.FieldName))
+			_, _ = mermaidDiagram.WriteString(fmt.Sprintf("  %s[\"%s\"]:::tf-path --> %s[\"%s\"]:::tf-resource-name --> %s[\"%s\"]:::aws-resource\n", elementPathName, dir.DisplayPath, elementResourceName, resource.Name, elementResourceFieldName, resource.FieldName))
 		}
 	}
 
@@ -182,5 +194,5 @@ flowchart LR
 var nonAlphanumericRegex = regexp.MustCompile(`[^a-zA-Z0-9 ]+`)
 
 func clearString(str string) string {
-    return nonAlphanumericRegex.ReplaceAllString(str, "")
+	return nonAlphanumericRegex.ReplaceAllString(str, "")
 }
