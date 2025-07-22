@@ -1,5 +1,10 @@
+locals {
+  some_variable = "local_value"
+  another_local = "name-acc1-1"
+}
+
 resource "resource_type" "resource_name_acc1_1" {
-  name = "name-acc1-1"
+  name = local.another_local
   key1 = "value1"
   key2 = "value2"
 }

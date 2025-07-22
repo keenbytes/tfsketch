@@ -13,4 +13,3 @@ resource "resource_type" "resource_name_ing1_2" {
   key1 = "value1_2"
   key2 = "value2_2"
 }
-

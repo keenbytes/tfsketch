@@ -145,17 +145,33 @@ func getResourceNameField(block *hcl.Block) (string, error) {
 	nameField := ""
 
 	for attrName, attr := range bodyContent.Attributes {
-		if attrName == "name" {
-			if expr, ok := attr.Expr.(*hclsyntax.TemplateExpr); ok {
-				// This is an interpolated string like "${var.prefix}-example-role"
-				srcRange := expr.SrcRange
-				source, err := os.ReadFile(srcRange.Filename)
-				if err == nil {
-					raw := string(source[srcRange.Start.Byte:srcRange.End.Byte])
-					nameField = raw
-					nameField = strings.TrimLeft(nameField, "\"")
-					nameField = strings.TrimRight(nameField, "\"")
-				}
+		if attrName != "name" {
+			continue
+		}
+
+		expr, ok := attr.Expr.(*hclsyntax.TemplateExpr)
+		if ok {
+			srcRange := expr.SrcRange
+			source, err := os.ReadFile(srcRange.Filename)
+			if err == nil {
+				raw := string(source[srcRange.Start.Byte:srcRange.End.Byte])
+				nameField = raw
+				nameField = strings.TrimLeft(nameField, "\"")
+				nameField = strings.TrimRight(nameField, "\"")
+			}
+
+			continue
+		}
+
+		scopeTraversalExpr, ok := attr.Expr.(*hclsyntax.ScopeTraversalExpr)
+		if ok {
+			srcRange := scopeTraversalExpr.SrcRange
+			source, err := os.ReadFile(srcRange.Filename)
+			if err == nil {
+				raw := string(source[srcRange.Start.Byte:srcRange.End.Byte])
+				nameField = raw
+				nameField = strings.TrimLeft(nameField, "\"")
+				nameField = strings.TrimRight(nameField, "\"")
 			}
 		}
 	}
