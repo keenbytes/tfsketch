@@ -11,7 +11,7 @@ import (
 
 	hcl "github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
-	"github.com/zclconf/go-cty/cty"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 )
 
 var (
@@ -133,9 +133,17 @@ func getResourceNameField(block *hcl.Block) (string, error) {
 	
 	for attrName, attr := range bodyContent.Attributes {
 		if attrName == "name" {
-			val, diag := attr.Expr.Value(nil)
-			if !diag.HasErrors() && val.Type() == cty.String {
-				nameField = val.AsString()
+			if expr, ok := attr.Expr.(*hclsyntax.TemplateExpr); ok {
+				// This is an interpolated string like "${var.prefix}-example-role"
+				srcRange := expr.SrcRange
+				source, err := os.ReadFile(srcRange.Filename)
+				if err == nil {
+					raw := string(source[srcRange.Start.Byte:srcRange.End.Byte])
+					nameField = raw
+				}
+			} else {
+				// Handle plain expressions (e.g., just "foo")
+				nameField = attr.Expr.Range().String()
 			}
 		}
 	}

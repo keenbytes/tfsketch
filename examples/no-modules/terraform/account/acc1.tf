@@ -9,7 +9,7 @@ resource "another_resource" "resource_name_acc1" {
 }
 
 resource "resource_type" "resource_name_acc1_2" {
-  name = "name-acc1-2"
+  name = "${local.some_variable}-name-acc1-2"
   key1 = "value1_2"
   key2 = "value2_2"
 }
