@@ -26,6 +26,7 @@ type Overrides struct {
 type ExternalModule struct {
 	Source string `yaml:"source"`
 	Version string `yaml:"version"`
+	ModulePath string `yaml:"modulePath,omitempty"`
 	LocalPath string `yaml:"localPath"`
 }
 
@@ -52,7 +53,11 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	if overridesPath != "" {
 		overrides = getOverrides(overridesPath)
 		for _, externalModule := range overrides.ExternalModules {
-			err := traverseTerraformDirectory(externalModule.LocalPath, externalModule.Source+"@"+externalModule.Version, resourceType, false, false)
+			externalModuleKey := externalModule.Source+"@"+externalModule.Version
+			if externalModule.ModulePath != "" {
+				externalModuleKey += "|" + externalModule.ModulePath
+			}
+			err := traverseTerraformDirectory(externalModule.LocalPath, externalModuleKey, resourceType)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error traversing override external module in local path %s: %s", externalModule.LocalPath, errorTraversingTerraformDir(err))
 				return 2
@@ -60,18 +65,18 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 		}
 	}
 
-	err := traverseTerraformDirectory(terraformDir, ".", resourceType, true, true)
+	err := traverseTerraformDirectory(terraformDir, ".", resourceType)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error traversing root terraform dir: %s", errorTraversingTerraformDir(err))
 		return 1
 	}
 
 	fmt.Fprintf(os.Stdout, "\n\nExternal tf modules placed locally (from overrides):\n")
-	for key, _ := range allDirs {
+	for key, dir := range allDirs {
 		if key == "." {
 			continue
 		}
-		fmt.Fprintf(os.Stdout, "%s\n", key)
+		fmt.Fprintf(os.Stdout, "%s -> %s\n", key, dir.Root)
 	}
 
 	// generate for the root dir
