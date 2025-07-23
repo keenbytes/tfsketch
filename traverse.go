@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -150,6 +151,11 @@ func processDirs(dirs map[string]*Directory, resourceTypeToMatch string) {
 			}
 
 			fullPath := filepath.Join(directory.FullPath, file.Name())
+
+			slog.Debug(
+				"opening tf file to parse in processDirs",
+				slog.String("path", fullPath),
+			)
 
 			hclFile, diags := parser.ParseHCLFile(fullPath)
 			if diags.HasErrors() {

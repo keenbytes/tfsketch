@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 
 	"github.com/keenbytes/broccli/v3"
@@ -37,6 +38,7 @@ func main() {
 	cmd.Arg("path", "DIR", "Path to directory with terraform code", broccli.TypePathFile, broccli.IsDirectory|broccli.IsExistent|broccli.IsRequired)
 	cmd.Arg("type", "RESOURCE_TYPE", "Type of the resource to search for", broccli.TypeString, broccli.IsRequired)
 	cmd.Flag("overrides", "o", "FILE", "File with local paths to external modules", broccli.TypePathFile, broccli.IsRegularFile)
+	cmd.Flag("debug", "d", "", "Debug mode", broccli.TypeBool, 0)
 
 	os.Exit(cli.Run(context.Background()))
 }
@@ -44,6 +46,18 @@ func main() {
 var allDirs = map[string]*DirContainer{}
 
 func genHandler(_ context.Context, cli *broccli.Broccli) int {
+	logLevel := slog.LevelInfo
+	debug := cli.Flag("debug")
+	if debug == "true" {
+		logLevel = slog.LevelDebug
+	}
+	
+	opts := &slog.HandlerOptions{
+		Level: logLevel,
+	}
+	logger := slog.New(slog.NewTextHandler(os.Stderr, opts))
+	slog.SetDefault(logger)
+
 	terraformDir := cli.Arg("path")
 	resourceType := cli.Arg("type")
 
