@@ -1,0 +1,4 @@
+externalModules:
+  - source: external-tf-module-2
+    version: "0.1.0"
+    localPath: "/Users/nicholas/Repositories/github.com/KeenBytes/tf-module-2"

@@ -1,3 +1,3 @@
 # tfsketch
 
-Work in progress.
+Happy coding PoC GTD WIP.

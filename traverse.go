@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -33,7 +34,39 @@ type Resource struct {
 	TfFileName string
 }
 
-func traverseTerraformDirectory(root string, resourceType string) error {
+type DirContainer struct {
+	Root string
+	Dirs map[string]*Directory
+	DirsModules map[string]*Directory
+}
+
+func traverseTerraformDirectory(root string, externalModuleName string, resourceType string, walkModules bool, modulesSeparately bool) error {
+	dirs, dirsModules, err := walkDirAndReturnsDirectories(root, walkModules, modulesSeparately)
+	if err != nil {
+		return fmt.Errorf("error walking dir: %w", err)
+	}
+
+	dirContainer := &DirContainer{
+		Root: root,
+		Dirs: dirs,
+		DirsModules: dirsModules,
+	}
+
+	allDirs[externalModuleName] = dirContainer
+
+	processDirs(dirs, resourceType)
+	if walkModules {
+		processDirs(dirsModules, resourceType)
+	}
+
+	if modulesSeparately {
+		processModulesInDirs(dirs, dirsModules)
+	}
+
+	return nil
+}
+
+func walkDirAndReturnsDirectories(root string, walkModules bool, modulesSeparately bool) (map[string]*Directory, map[string]*Directory, error) {
 	dirs := make(map[string]*Directory)
 	dirsModules := make(map[string]*Directory)
 
@@ -54,11 +87,22 @@ func traverseTerraformDirectory(root string, resourceType string) error {
 			}
 		}
 
+		if isModulesDir && !walkModules && modulesSeparately {
+			if d.IsDir() {
+				return fs.SkipDir
+			} else {
+				return nil
+			}
+		}
+
 		if !d.IsDir() && strings.HasSuffix(d.Name(), ".tf") {
 			dir := filepath.Dir(path)
 			dirWithoutRoot := strings.Replace(dir, root, "", 1)
+			if dirWithoutRoot == "" {
+				dirWithoutRoot = "root"
+			}
 
-			if isModulesDir {
+			if isModulesDir && modulesSeparately {
 				dirsModules[dir] = &Directory{
 					FullPath:    dir,
 					DisplayPath: dirWithoutRoot,
@@ -76,56 +120,10 @@ func traverseTerraformDirectory(root string, resourceType string) error {
 		return nil
 	})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error walking the path: %v\n", err)
-		os.Exit(1)
+		return nil, nil, fmt.Errorf("error walking the path: %w", err)
 	}
 
-	processDirs(dirs, resourceType)
-	processDirs(dirsModules, resourceType)
-	processModulesInDirs(dirs, dirsModules)
-
-	genMermaid(dirs)
-
-	return nil
-}
-
-func processModulesInDirs(dirs map[string]*Directory, dirsModules map[string]*Directory) {
-	for _, directory := range dirs {
-		if len(directory.Modules) == 0 {
-			continue
-		}
-
-		moduleKeys := make([]string, len(directory.Modules))
-		for moduleKey, _ := range directory.Modules {
-			moduleKeys = append(moduleKeys, moduleKey)
-		}
-
-		for _, moduleKey := range moduleKeys {
-			// key = ResourceName:Path
-			moduleKeyValues := strings.Split(moduleKey, ":")
-			if len(moduleKeyValues) != 2 {
-				continue
-			}
-
-			modulePath := moduleKeyValues[1]
-
-			if !strings.HasPrefix(modulePath, "./modules") {
-				continue
-			}
-
-			modulePathTrimmed := strings.Replace(modulePath, "./", "", 1)
-
-			// search for module in existing "modules" dirs
-			dirModule, ok := dirsModules[filepath.Join(directory.FullPath, modulePathTrimmed)]
-			if !ok {
-				continue
-			}
-			
-			// we got a reference to a module that is local, meaning in a "modules" subdir
-			// let's assign the Directory object so that we can later iterate over its resources
-			directory.Modules[moduleKey] = dirModule
-		}
-	}
+	return dirs, dirsModules, nil
 }
 
 func processDirs(dirs map[string]*Directory, resourceTypeToMatch string) {
@@ -151,7 +149,6 @@ func processDirs(dirs map[string]*Directory, resourceTypeToMatch string) {
 					{Type: "module", LabelNames: []string{"name"}},
 				},
 			})
-
 			for _, block := range content.Blocks {
 				if len(block.Labels) == 2 && block.Type == "resource" {
 					resourceType := block.Labels[0]
@@ -171,8 +168,8 @@ func processDirs(dirs map[string]*Directory, resourceTypeToMatch string) {
 
 				if len(block.Labels) == 1 && block.Type == "module" {
 					moduleResourceName := block.Labels[0]
-					sourceField, _ := getSourceField(block)
-					directory.Modules[moduleResourceName+":"+sourceField] = nil
+					sourceField, versionField, _ := getSourceVersionFields(block)
+					directory.Modules[moduleResourceName+":"+sourceField+"@"+versionField] = nil
 				}
 			}
 		}
@@ -198,9 +195,75 @@ var (
 				Name:     "source",
 				Required: false,
 			},
+			{
+				Name:     "version",
+				Required: false,
+			},
 		},
 	}
 )
+
+func processModulesInDirs(dirs map[string]*Directory, dirsModules map[string]*Directory) {
+	for _, directory := range dirs {
+		if len(directory.Modules) == 0 {
+			continue
+		}
+
+		moduleKeys := make([]string, len(directory.Modules))
+		for moduleKey, _ := range directory.Modules {
+			moduleKeys = append(moduleKeys, moduleKey)
+		}
+
+		for _, moduleKey := range moduleKeys {
+			// key = ResourceName:Path
+			moduleKeyValues := strings.Split(moduleKey, ":")
+			if len(moduleKeyValues) != 2 {
+				continue
+			}
+
+			modulePath := moduleKeyValues[1]
+
+			// ./modules means that the module in the same dir
+			if strings.HasPrefix(modulePath, "./modules") {
+				// local modules have './modules...@' because there is no version number
+				modulePathTrimmed := strings.Replace(modulePath, "./", "", 1)
+				modulePathTrimmed = strings.Replace(modulePathTrimmed, "@", "", 1)
+
+				// search for module in existing "modules" dirs
+				dirModule, ok := dirsModules[filepath.Join(directory.FullPath, modulePathTrimmed)]
+				if !ok {
+					continue
+				}
+				
+				// we got a reference to a module that is local, meaning in a "modules" subdir
+				// let's assign the Directory object so that we can later iterate over its resources
+				directory.Modules[moduleKey] = dirModule
+
+				continue
+			}
+
+			// everything else means it is an external module which we have to look in the overrides
+			// allDirs is global but let's nevermind that for this PoC
+			externalDirModule, ok := allDirs[modulePath]
+			if !ok {
+				log.Printf("-------------> EXTERNAL MODULE NOT FOUND in allDirs: %s\n", modulePath)
+			}
+
+			// todo: this logic is wrong but let's leave it for now if it works
+			// basically key in Dirs is the path because that how the traverse function works
+			firstExternalDirModuleKey := ""
+			for key, _ := range externalDirModule.Dirs {
+				firstExternalDirModuleKey = key
+			}
+
+			rootExternalDirModule, ok := externalDirModule.Dirs[firstExternalDirModuleKey]
+			if !ok {
+				log.Printf("-------------> ROOT NOT FOUND IN EXTERNAL MODULE: %s\n", modulePath)
+			}
+			directory.Modules[moduleKey] = rootExternalDirModule
+		}
+	}
+}
 
 func getResourceNameField(block *hcl.Block) (string, error) {
 	name := block.Labels[0]
@@ -247,28 +310,28 @@ func getResourceNameField(block *hcl.Block) (string, error) {
 	return nameField, nil
 }
 
-func getSourceField(block *hcl.Block) (string, error) {
+func getSourceVersionFields(block *hcl.Block) (string, string, error) {
 	name := block.Labels[0]
 
 	bodyContent, _, diags := block.Body.PartialContent(TfModule)
 	if diags.HasErrors() {
-		return "", fmt.Errorf("error parsing block %s.%s: %s", block.Type, name, diags.Error())
+		return "", "", fmt.Errorf("error parsing block %s.%s: %s", block.Type, name, diags.Error())
 	}
 
-	source := ""
+	fieldValues := make(map[string]string, 2)
 
 	for attrName, attr := range bodyContent.Attributes {
-		if attrName != "source" {
+		if attrName != "source" && attrName != "version" {
 			continue
 		}
 
 		value, _ := attr.Expr.Value(nil)
 		if value.Type() == cty.String {
-			source = value.AsString()
+			fieldValues[attrName] = value.AsString()
 		}
 	}
 
-	return source, nil
+	return fieldValues["source"], fieldValues["version"], nil
 }
 
 func genMermaid(dirs map[string]*Directory) {
@@ -281,7 +344,9 @@ config:
 flowchart LR
   classDef tf-path fill:#c87de8
   classDef tf-resource-name stroke:#e7b6fc,color:#c87de8
-  classDef aws-resource fill:#ffb83d
+	classDef tf-resource-name-from-internal-module fill:#e7b6fc
+	classDef tf-resource-name-from-external-module fill:#7da8e8
+  classDef tf-resource-field-name fill:#eb91c7
 `)
 
 	for _, dir := range dirs {
@@ -294,7 +359,7 @@ flowchart LR
 
 			_, _ = mermaidDiagram.WriteString(
 				fmt.Sprintf(
-					"  %s[\"%s\"]:::tf-path --> %s[\"%s\"]:::tf-resource-name --> %s[\"%s\"]:::aws-resource\n",
+					"  %s[\"%s\"]:::tf-path --> %s[\"%s\"]:::tf-resource-name --> %s[\"%s\"]:::tf-resource-field-name\n",
 					elementPathName,
 					dir.DisplayPath,
 					elementResourceName,
@@ -314,18 +379,25 @@ flowchart LR
 
 			moduleKeyValues := strings.Split(moduleKey, ":")
 			moduleResourceName := moduleKeyValues[0]
+			modulePath := moduleKeyValues[1]
 
 			for _, resource := range dirModule.Resources {
 				elementResourceName := elementPathName + "_mod_" + moduleElementPathName + "_" + clearString(moduleResourceName) + "_" + clearString(resource.Name)
 				elementResourceFieldName := elementResourceName + "_FieldName"
 
+				elementClassDef := "tf-resource-name-from-external-module"
+				if strings.HasPrefix(modulePath, "./modules") {
+					elementClassDef = "tf-resource-name-from-internal-module"
+				}
+
 				_, _ = mermaidDiagram.WriteString(
 					fmt.Sprintf(
-						"  %s[\"%s\"]:::tf-path --> %s[\"%s\"]:::tf-resource-name --> %s[\"%s\"]:::aws-resource\n",
+						"  %s[\"%s\"]:::tf-path --> %s[\"%s\"]:::%s --> %s[\"%s\"]:::tf-resource-field-name\n",
 						elementPathName,
 						dir.DisplayPath,
 						elementResourceName,
 						"mod." + moduleResourceName + "." + resource.Name,
+						elementClassDef,
 						elementResourceFieldName,
 						resource.FieldName,
 					),
