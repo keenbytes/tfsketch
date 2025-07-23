@@ -206,6 +206,10 @@ var (
 				Name:     "id",
 				Required: false,
 			},
+			{
+				Name:     "name_prefix",
+				Required: false,
+			},
 		},
 	}
 	TfModule = &hcl.BodySchema{
@@ -311,8 +315,39 @@ func getResourceNameField(block *hcl.Block) (string, error) {
 
 	nameField := ""
 
+	attrToLook := ""
+
+	foundName := false
+	foundNamePrefix := false
+	foundId := false
+	for attrName, _ := range bodyContent.Attributes {
+		if attrName == "name" {
+			foundName = true
+		}
+		if attrName == "name_prefix" {
+			foundNamePrefix = true
+		}
+		if attrName == "id" {
+			foundId = true
+		}
+	}
+
+	if foundName {
+		attrToLook = "name"
+	}
+	if !foundName && foundNamePrefix {
+		attrToLook = "name_prefix"
+	}
+	if !foundName && !foundNamePrefix && foundId {
+		attrToLook = "id"
+	}
+
+	if attrToLook == "" {
+		return "no-name-attr", nil
+	}
+
 	for attrName, attr := range bodyContent.Attributes {
-		if attrName != "name" {
+		if attrName != attrToLook {
 			continue
 		}
 
