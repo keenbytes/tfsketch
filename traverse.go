@@ -247,6 +247,7 @@ func processModulesInDirs(dirs map[string]*Directory, dirsModules map[string]*Di
 			externalDirModule, ok := allDirs[modulePath]
 			if !ok {
 				log.Printf("-------------> EXTERNAL MODULE NOT FOUND in allDirs: %s\n", modulePath)
+				continue
 			}
 
 			// todo: this logic is wrong but let's leave it for now if it works
@@ -259,6 +260,7 @@ func processModulesInDirs(dirs map[string]*Directory, dirsModules map[string]*Di
 			rootExternalDirModule, ok := externalDirModule.Dirs[firstExternalDirModuleKey]
 			if !ok {
 				log.Printf("-------------> ROOT NOT FOUND IN EXTERNAL MODULE: %s\n", modulePath)
+				continue
 			}
 			directory.Modules[moduleKey] = rootExternalDirModule
 		}
