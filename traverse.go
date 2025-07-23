@@ -259,8 +259,6 @@ func processModulesInDirs(dirs map[string]*Directory, dirsModules map[string]*Di
 				modulePath = directory.ModuleName + "|" + strings.Replace(modulePath, "@", "", 1)
 			}
 
-log.Printf("|||||||||| %s\n", modulePath)
-
 			// everything else means it is an external module which we have to look in the overrides
 			// allDirs is global but let's nevermind that for this PoC
 			externalDirModule, ok := allDirs[modulePath]
