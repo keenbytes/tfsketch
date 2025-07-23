@@ -17,8 +17,8 @@ config:
 flowchart LR
   classDef tf-path fill:#c87de8
   classDef tf-resource-name stroke:#e7b6fc,color:#c87de8
-	classDef tf-resource-name-int-mod fill:#e7b6fc
-	classDef tf-resource-name-ext-mod fill:#7da8e8
+  classDef tf-resource-name-int-mod fill:#e7b6fc
+  classDef tf-resource-name-ext-mod fill:#7da8e8
   classDef tf-resource-field-name fill:#eb91c7
 `)
 
