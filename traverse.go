@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	hcl "github.com/hashicorp/hcl/v2"
@@ -403,97 +402,4 @@ func getSourceVersionFields(block *hcl.Block) (string, string, error) {
 	}
 
 	return fieldValues["source"], fieldValues["version"], nil
-}
-
-func genMermaid(dirs map[string]*Directory) {
-	mermaidDiagram := &strings.Builder{}
-
-	mermaidDiagram.WriteString(`---
-config:
-  theme: redux
----
-flowchart LR
-  classDef tf-path fill:#c87de8
-  classDef tf-resource-name stroke:#e7b6fc,color:#c87de8
-	classDef tf-resource-name-from-internal-module fill:#e7b6fc
-	classDef tf-resource-name-from-external-module fill:#7da8e8
-  classDef tf-resource-field-name fill:#eb91c7
-`)
-
-	for _, dir := range dirs {
-		elementPathName := strings.ReplaceAll(dir.DisplayPath, "/", "_")
-		elementPathName = clearString(elementPathName)
-
-		for _, resource := range dir.Resources {
-			elementResourceName := elementPathName + "_" + clearString(resource.Name)
-			elementResourceFieldName := elementResourceName + "_FieldName"
-
-			_, _ = mermaidDiagram.WriteString(
-				fmt.Sprintf(
-					"  %s[\"%s\"]:::tf-path --> %s[\"%s\"]:::tf-resource-name --> %s[\"%s\"]:::tf-resource-field-name\n",
-					elementPathName,
-					dir.DisplayPath,
-					elementResourceName,
-					resource.Name,
-					elementResourceFieldName,
-					resource.FieldName,
-				),
-			)
-		}
-
-		writeModulesDiagramCode(mermaidDiagram, dir.Modules, elementPathName, dir.DisplayPath)
-	}
-
-	fmt.Fprint(os.Stdout, mermaidDiagram.String())
-}
-
-func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[string]*Directory, elementPathName string, dirDisplayPath string) {
-	for moduleKey, dirModule := range dirModules {
-		if dirModule == nil {
-			continue
-		}
-
-		modElementPathName := strings.ReplaceAll(dirModule.DisplayPath, "/", "_")
-		modElementPathName = "_mod_"+clearString(modElementPathName)
-
-		modKeyValues := strings.Split(moduleKey, ":")
-		modResourceName := modKeyValues[0]
-		modPath := modKeyValues[1]
-
-		// looping through module resources
-		for _, resource := range dirModule.Resources {
-			elemResourceName := elementPathName + modElementPathName + "_" + clearString(modResourceName) + "_" + clearString(resource.Name)
-			elemResourceFieldName := elemResourceName + "_FieldName"
-
-			elementClassDef := "tf-resource-name-from-external-module"
-			if strings.HasPrefix(modPath, "./modules") {
-				elementClassDef = "tf-resource-name-from-internal-module"
-			}
-
-			_, _ = mermaidDiagram.WriteString(
-				fmt.Sprintf(
-					"  %s[\"%s\"]:::tf-path --> %s[\"%s\"]:::%s --> %s[\"%s\"]:::tf-resource-field-name\n",
-					elementPathName,
-					dirDisplayPath,
-					elemResourceName,
-					"mod." + modResourceName + "." + resource.Name,
-					elementClassDef,
-					elemResourceFieldName,
-					resource.FieldName,
-				),
-			)
-		}
-
-		if len(dirModule.Modules) == 0 {
-			continue
-		}
-
-		writeModulesDiagramCode(mermaidDiagram, dirModule.Modules, elementPathName, dirDisplayPath)
-	}
-}
-
-var nonAlphanumericRegex = regexp.MustCompile(`[^a-zA-Z0-9 ]+`)
-
-func clearString(str string) string {
-	return nonAlphanumericRegex.ReplaceAllString(str, "")
 }

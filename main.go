@@ -94,7 +94,7 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	}
 
 	// generate for the root dir
-	genMermaid(allDirs["."].Dirs)
+	genMermaid(allDirs["."].Dirs, resourceType)
 
 	return 0
 }
