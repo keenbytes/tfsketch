@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"html"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -23,9 +24,9 @@ config:
 ---
 flowchart LR
   classDef tf-path fill:#c87de8
-  classDef tf-resource-name stroke:#e7b6fc,color:#c87de8
-  classDef tf-int-mod fill:#e7b6fc
-  classDef tf-ext-mod fill:#7da8e8
+  classDef tf-resource-name stroke:#e7b6fc,color:#c87de8,text-align:left
+  classDef tf-int-mod fill:#e7b6fc,text-align:left
+  classDef tf-ext-mod fill:#7da8e8,text-align:left
   classDef tf-resource-field-name fill:#eb91c7
 `)
 
@@ -43,7 +44,7 @@ flowchart LR
 		}
 
 		elementTfPathID := diagramElementID(dir.DisplayPath)
-		elementTfPathContents := "Path: " + dir.DisplayPath
+		elementTfPathContents := dir.DisplayPath
 		elementTfPath := diagramElementTfPath(elementTfPathID, elementTfPathContents)
 
 		resourceKeys := make([]string, len(dir.Resources))
@@ -58,20 +59,20 @@ flowchart LR
 				continue
 			}
 
-			elementResourceNameID := elementTfPathID + "___" + diagramElementID(resource.Name)
-			elementResourceNameContents := "Resource: " + resourceTypeToFind + "." + resource.Name
-			
-			multiple := false
+			elementForEachPart := ""
 			if resource.ForEach != "" {
-				multiple = true
+				elementForEachPart = "<br>*for_each = " + resource.ForEach + "*"
 			}
 
-			elementResourceName := diagramElementTfResource(elementResourceNameID, elementResourceNameContents, multiple)
+			elementResourceNameID := elementTfPathID + "___" + diagramElementID(resource.Name)
+			elementResourceNameContents := resourceTypeToFind + "." + resource.Name + elementForEachPart
+			
+			elementResourceName := diagramElementTfResource(elementResourceNameID, elementResourceNameContents, false)
 
 			elementResourceFieldNameID := elementResourceNameID + "___FieldName"
 			elementResourceFieldNameContents := resource.FieldName
 
-			elementResourceFieldName := diagramElementTfResourceFieldName(elementResourceFieldNameID, elementResourceFieldNameContents, multiple)
+			elementResourceFieldName := diagramElementTfResourceFieldName(elementResourceFieldNameID, elementResourceFieldNameContents, false)
 
 			_, _ = mermaidDiagram.WriteString(
 				fmt.Sprintf(
@@ -83,7 +84,7 @@ flowchart LR
 			)
 		}
 
-		writeModulesDiagramCode(mermaidDiagram, dir.Modules, dir.ModulesForEach, elementTfPathID, elementTfPath, resourceTypeToFind, "", "", false)
+		writeModulesDiagramCode(mermaidDiagram, dir.Modules, dir.ModulesForEach, elementTfPathID, elementTfPath, resourceTypeToFind, "", "")
 	}
 
 	err := os.WriteFile(filepath.Clean(outputFile), []byte(mermaidDiagram.String()), 0600)
@@ -96,7 +97,7 @@ flowchart LR
 	}
 }
 
-func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[string]*Directory, dirModulesForEach map[string]string, elementTfPathID string, elementTfPath string, resourceTypeToFind string, parentPath string, parentElementID string, multiple bool) {
+func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[string]*Directory, dirModulesForEach map[string]string, elementTfPathID string, elementTfPath string, resourceTypeToFind string, parentPath string, parentElementID string) {
 	for moduleKey, dirModule := range dirModules {
 		if dirModule == nil {
 			continue
@@ -109,12 +110,21 @@ func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[str
 		// let's pass the module name as a parent to the next module inside it
 		parentPathElement := ""
 		if parentPath != "" {
-			parentPathElement = parentPath + " > "
+			parentPathElement = parentPath + "<br>-&gt;<br>"
 		}
 		// new parent path include this element's name
-		newParentPathElement := parentPathElement + "module." + modResourceName
+		modPath = strings.TrimRight(modPath, "@")
+		modPath = strings.Replace(modPath, "@", `\@`, 1)
+		modPath = html.EscapeString(modPath)
 
-		elementModuleContents := "Module: " + newParentPathElement
+		forEachPart := ""
+		if dirModulesForEach[moduleKey] != "" {
+			forEachPart = "<br><i>for_each = " + html.EscapeString(dirModulesForEach[moduleKey]) + "</i>"
+		}
+
+		newParentPathElement := parentPathElement + "<b>module." + modResourceName + "</b><br>" + modPath + forEachPart
+
+		elementModuleContents := newParentPathElement
 
 		elementModuleIDResourceNamePart := "" 
 		if parentElementID != "" {
@@ -124,15 +134,11 @@ func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[str
 
 		elementModuleID := elementTfPathID + "___mod___" + diagramElementID(dirModule.DisplayPath) + "___" + elementModuleIDResourceNamePart
 
-		if parentPath == "" && dirModulesForEach[moduleKey] != "" {
-			multiple = true
-		}
-
 		elementModulePath := ""
 		if parentPath == "" && strings.HasPrefix(modPath, "./modules") {
-			elementModulePath = diagramElementTfInternalModule(elementModuleID, elementModuleContents, multiple)
+			elementModulePath = diagramElementTfInternalModule(elementModuleID, elementModuleContents, false)
 		} else {
-			elementModulePath = diagramElementTfExternalModule(elementModuleID, elementModuleContents, multiple)
+			elementModulePath = diagramElementTfExternalModule(elementModuleID, elementModuleContents, false)
 		}
 
 		// do not print a module that has no resources
@@ -148,30 +154,26 @@ func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[str
 
 		// looping through module resources
 		for _, resource := range dirModule.Resources {
+			elementForEachPart := ""
+			if resource.ForEach != "" {
+				elementForEachPart = "<br><i>for_each = " + html.EscapeString(resource.ForEach) + "</i>"
+			}
+
 			elementResourceNameID := elementModuleID + "___" + diagramElementID(resource.Name)
-			elementResourceNameContents := "Resource: " + resource.Name
+			elementResourceNameContents := resourceTypeToFind + "." + resource.Name + elementForEachPart
 			elementResourceName := ""
-			
-			multipleResource := false
-			if multiple {
-				multipleResource = true
-			}
 
-			if !multipleResource && resource.ForEach != "" {
-				multipleResource = true
-			}
-
-			elementResourceName = diagramElementTfResource(elementResourceNameID, elementResourceNameContents, multipleResource)
+			elementResourceName = diagramElementTfResource(elementResourceNameID, elementResourceNameContents, false)
 			
 			elementResourceFieldNameID := elementResourceNameID + "___FieldName"
 			elementResourceFieldNameContents := resource.FieldName
 			
-			elementResourceFieldName := diagramElementTfResourceFieldName(elementResourceFieldNameID, elementResourceFieldNameContents, multipleResource)
+			elementResourceFieldName := diagramElementTfResourceFieldName(elementResourceFieldNameID, elementResourceFieldNameContents, false)
 
 			_, _ = mermaidDiagram.WriteString(
 				fmt.Sprintf(
 					"  %s --> %s --> %s\n",
-					elementModulePath,
+					elementModuleID,
 					elementResourceName,
 					elementResourceFieldName,
 				),
@@ -182,7 +184,7 @@ func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[str
 			continue
 		}
 
-		writeModulesDiagramCode(mermaidDiagram, dirModule.Modules, dirModule.ModulesForEach, elementTfPathID, elementTfPath, resourceTypeToFind, newParentPathElement, elementModuleIDResourceNamePart, multiple)
+		writeModulesDiagramCode(mermaidDiagram, dirModule.Modules, dirModule.ModulesForEach, elementTfPathID, elementTfPath, resourceTypeToFind, newParentPathElement, elementModuleIDResourceNamePart)
 	}
 }
 
