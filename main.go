@@ -124,6 +124,8 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 		}
 	}
 
+	slog.Debug("finished parsing overrides")
+
 	err = traverseTerraformDirectory(terraformDir, ".", resourceType)
 	if err != nil {
 		slog.Error(
