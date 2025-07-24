@@ -103,6 +103,24 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 				)
 				return 2
 			}
+
+			for dirKey, dir := range allDirs[externalModule.Source].Dirs {
+				slog.Debug(
+					"got directory from traversing an override",
+					slog.String("module", externalModule.Source),
+					slog.String("directory", dir.FullPath),
+					slog.String("key", dirKey),
+				)
+			}
+
+			for dirKey, dirModule := range allDirs[externalModule.Source].DirsModules {
+				slog.Debug(
+					"got module directory from traversing an override",
+					slog.String("module", externalModule.Source),
+					slog.String("directory", dirModule.FullPath),
+					slog.String("key", dirKey),
+				)
+			}
 		}
 	}
 

@@ -242,17 +242,6 @@ func processModulesInDirs(dirs map[string]*Directory, dirsModules map[string]*Di
 			// allDirs is global but let's nevermind that for this PoC
 			externalDirModule, ok := allDirs[modulePath]
 			if !ok {
-				/*if strings.HasPrefix(modulePath, ".") {
-					modulePathTrimmed := strings.Replace(modulePath, "@", "", 1)
-
-
-					moduleCleanPath := filepath.Clean(filepath.Join(directory.FullPath, modulePathTrimmed))
-					for allDirModuleName, allDirItem := range allDirs {
-						if moduleCleanPath == allDirItem.Root {
-							externalDirModule = allDirs[allDirModuleName]
-						}
-					}
-				}*/
 				slog.Error(
 					"external module not found in allDirs",
 					slog.String("module", modulePath),
