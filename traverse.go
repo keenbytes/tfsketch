@@ -48,6 +48,7 @@ func walkDirAndReturnsDirectories(root string, externalModuleName string) (map[s
 		}
 
 		isModulesDir := false
+		isExamplesDir := false
 
 		// check for paths that have a 'modules' part in it
 		relPath, _ := filepath.Rel(root, path)
@@ -56,6 +57,18 @@ func walkDirAndReturnsDirectories(root string, externalModuleName string) (map[s
 			if part == "modules" {
 				isModulesDir = true
 				break
+			}
+			if part == "examples" || part == "example" {
+				isExamplesDir = true
+				break
+			}
+		}
+
+		if isExamplesDir {
+			if d.IsDir() {
+				return fs.SkipDir
+			} else {
+				return nil
 			}
 		}
 
