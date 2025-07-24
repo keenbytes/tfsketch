@@ -59,13 +59,13 @@ flowchart LR
 			)
 		}
 
-		writeModulesDiagramCode(mermaidDiagram, dir.Modules, elementTfPathID, elementTfPath, resourceTypeToFind)
+		writeModulesDiagramCode(mermaidDiagram, dir.Modules, elementTfPathID, elementTfPath, resourceTypeToFind, "")
 	}
 
 	fmt.Fprint(os.Stdout, mermaidDiagram.String())
 }
 
-func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[string]*Directory, elementTfPathID string, elementTfPath string, resourceTypeToFind string) {
+func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[string]*Directory, elementTfPathID string, elementTfPath string, resourceTypeToFind string, parentPath string) {
 	for moduleKey, dirModule := range dirModules {
 		if dirModule == nil {
 			continue
@@ -76,7 +76,15 @@ func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[str
 		modPath := modKeyValues[1]
 
 		elementModuleID := elementTfPathID + "___mod___" + diagramElementID(dirModule.DisplayPath) + "___" + diagramElementID(modResourceName)
-		elementModuleContents := "Resource: module." + modResourceName + " > " + resourceTypeToFind + "."
+
+		parentPathElement := ""
+		if parentPath != "" {
+			parentPathElement = parentPath + " > "
+		}
+
+		elementModuleContents := "Resource: " + parentPathElement + "module." + modResourceName + " > " + resourceTypeToFind + "."
+
+		elementModulePathToPassDeeper := parentPathElement + "module." + modResourceName
 
 		// looping through module resources
 		for _, resource := range dirModule.Resources {
@@ -108,7 +116,7 @@ func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[str
 			continue
 		}
 
-		writeModulesDiagramCode(mermaidDiagram, dirModule.Modules, elementTfPathID, elementTfPath, resourceTypeToFind)
+		writeModulesDiagramCode(mermaidDiagram, dirModule.Modules, elementTfPathID, elementTfPath, resourceTypeToFind, elementModulePathToPassDeeper)
 	}
 }
 
