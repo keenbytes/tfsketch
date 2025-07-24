@@ -98,3 +98,6 @@ var (
 		},
 	}
 )
+
+const elementSeparator = "__"
+const partSeparator = "_"

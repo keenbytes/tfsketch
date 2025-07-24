@@ -66,12 +66,12 @@ flowchart LR
 				elementForEachPart = "<br>*for_each = " + resource.ForEach + "*"
 			}
 
-			elementResourceNameID := elementTfPathID + "___" + diagramElementID(resource.Name)
+			elementResourceNameID := elementTfPathID + elementSeparator + diagramElementID(resource.Name)
 			elementResourceNameContents := resourceTypeToFind + "." + resource.Name + elementForEachPart
 			
 			elementResourceName := diagramElementTfResource(elementResourceNameID, elementResourceNameContents, false)
 
-			elementResourceFieldNameID := elementResourceNameID + "___FieldName"
+			elementResourceFieldNameID := elementResourceNameID + partSeparator + "FieldName"
 			elementResourceFieldNameContents := resource.FieldName
 
 			elementResourceFieldName := diagramElementTfResourceFieldName(elementResourceFieldNameID, elementResourceFieldNameContents, false)
@@ -142,11 +142,11 @@ func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[str
 
 		elementModuleIDResourceNamePart := "" 
 		if parentElementID != "" {
-			elementModuleIDResourceNamePart += parentElementID + "___"
+			elementModuleIDResourceNamePart += parentElementID + elementSeparator
 		}
 		elementModuleIDResourceNamePart += diagramElementID(modResourceName)
 
-		elementModuleID := elementTfPathID + "___mod___" + diagramElementID(dirModule.DisplayPath) + "___" + elementModuleIDResourceNamePart
+		elementModuleID := elementTfPathID + elementSeparator + diagramElementID(dirModule.DisplayPath) + partSeparator + elementModuleIDResourceNamePart
 
 		elementModulePath := ""
 		if parentPath == "" && strings.HasPrefix(modPath, "./modules") {
@@ -173,13 +173,13 @@ func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[str
 				elementForEachPart = "<br><i>for_each = " + html.EscapeString(resource.ForEach) + "</i>"
 			}
 
-			elementResourceNameID := elementModuleID + "___" + diagramElementID(resource.Name)
+			elementResourceNameID := elementModuleID + elementSeparator + diagramElementID(resource.Name)
 			elementResourceNameContents := resourceTypeToFind + "." + resource.Name + elementForEachPart
 			elementResourceName := ""
 
 			elementResourceName = diagramElementTfResource(elementResourceNameID, elementResourceNameContents, false)
 			
-			elementResourceFieldNameID := elementResourceNameID + "___FieldName"
+			elementResourceFieldNameID := elementResourceNameID + partSeparator + "FieldName"
 			elementResourceFieldNameContents := resource.FieldName
 			
 			elementResourceFieldName := diagramElementTfResourceFieldName(elementResourceFieldNameID, elementResourceFieldNameContents, false)
