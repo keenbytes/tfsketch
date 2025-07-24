@@ -102,7 +102,7 @@ func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[str
 		// new parent path include this element's name
 		newParentPathElement := parentPathElement + "module." + modResourceName
 
-		elementModuleContents := "Resource: " + newParentPathElement + " > " + resourceTypeToFind + "."
+		elementModuleContents := "Module: " + newParentPathElement
 
 		elementModuleIDResourceNamePart := "" 
 		if parentElementID != "" {
@@ -112,16 +112,32 @@ func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[str
 
 		elementModuleID := elementTfPathID + "___mod___" + diagramElementID(dirModule.DisplayPath) + "___" + elementModuleIDResourceNamePart
 
+		elementModulePath := ""
+		if parentPath == "" && strings.HasPrefix(modPath, "./modules") {
+			elementModulePath = diagramElementTfResourceFromInternalModule(elementModuleID, elementModuleContents)
+		} else {
+			elementModulePath = diagramElementTfResourceFromExternalModule(elementModuleID, elementModuleContents)
+		}
+
+		_, _ = mermaidDiagram.WriteString(
+			fmt.Sprintf(
+				"  %s --> %s\n",
+				elementTfPath,
+				elementModulePath,
+			),
+		)
+
 		// looping through module resources
 		for _, resource := range dirModule.Resources {
 			elementResourceNameID := elementModuleID + "___" + diagramElementID(resource.Name)
-			elementResourceNameContents := elementModuleContents + resource.Name
+			elementResourceNameContents := "Resource: " + resource.Name
 			elementResourceName := ""
 			
-			if strings.HasPrefix(modPath, "./modules") {
-				elementResourceName = diagramElementTfResourceFromInternalModule(elementResourceNameID, elementResourceNameContents)
+			// only first level modules can be displayed as internal
+			if parentPath == "" && strings.HasPrefix(modPath, "./modules") {
+				elementResourceName = diagramElementTfResource(elementResourceNameID, elementResourceNameContents)
 			} else {
-				elementResourceName = diagramElementTfResourceFromExternalModule(elementResourceNameID, elementResourceNameContents)
+				elementResourceName = diagramElementTfResource(elementResourceNameID, elementResourceNameContents)
 			}
 
 			elementResourceFieldNameID := elementResourceNameID + "___FieldName"
@@ -131,7 +147,7 @@ func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[str
 			_, _ = mermaidDiagram.WriteString(
 				fmt.Sprintf(
 					"  %s --> %s --> %s\n",
-					elementTfPath,
+					elementModulePath,
 					elementResourceName,
 					elementResourceFieldName,
 				),
@@ -154,8 +170,16 @@ func diagramElement(elementId, elementContent, classDef string) string {
 	return fmt.Sprintf("%s[\"%s\"]:::%s", elementId, elementContent, classDef)
 }
 
+func diagramElementParallelogram(elementId, elementContent, classDef string) string {
+	return fmt.Sprintf("%s[/\"%s\"/]:::%s", elementId, elementContent, classDef)
+}
+
+func diagramElementAsymmetric(elementId, elementContent, classDef string) string {
+	return fmt.Sprintf("%s>\"%s\"]:::%s", elementId, elementContent, classDef)
+}
+
 func diagramElementTfPath(elementId, elementContent string) string {
-	return diagramElement(elementId, elementContent, "tf-path")
+	return diagramElementParallelogram(elementId, elementContent, "tf-path")
 }
 
 func diagramElementTfResource(elementId, elementContent string) string {
@@ -167,11 +191,11 @@ func diagramElementTfResourceFieldName(elementId, elementContent string) string 
 }
 
 func diagramElementTfResourceFromInternalModule(elementId, elementContent string) string {
-	return diagramElement(elementId, elementContent, "tf-resource-name-int-mod")
+	return diagramElementParallelogram(elementId, elementContent, "tf-resource-name-int-mod")
 }
 
 func diagramElementTfResourceFromExternalModule(elementId, elementContent string) string {
-	return diagramElement(elementId, elementContent, "tf-resource-name-ext-mod")
+	return diagramElementAsymmetric(elementId, elementContent, "tf-resource-name-ext-mod")
 }
 
 func diagramElementID(text string) string {
