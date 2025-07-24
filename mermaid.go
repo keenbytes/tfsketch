@@ -119,13 +119,16 @@ func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[str
 			elementModulePath = diagramElementTfResourceFromExternalModule(elementModuleID, elementModuleContents)
 		}
 
-		_, _ = mermaidDiagram.WriteString(
-			fmt.Sprintf(
-				"  %s --> %s\n",
-				elementTfPath,
-				elementModulePath,
-			),
-		)
+		// do not print a module that has no resources
+		if len(dirModule.Resources) > 0 {
+			_, _ = mermaidDiagram.WriteString(
+				fmt.Sprintf(
+					"  %s --> %s\n",
+					elementTfPath,
+					elementModulePath,
+				),
+			)
+		}
 
 		// looping through module resources
 		for _, resource := range dirModule.Resources {
