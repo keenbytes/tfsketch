@@ -19,8 +19,8 @@ config:
 flowchart LR
   classDef tf-path fill:#c87de8
   classDef tf-resource-name stroke:#e7b6fc,color:#c87de8
-  classDef tf-resource-name-int-mod fill:#e7b6fc
-  classDef tf-resource-name-ext-mod fill:#7da8e8
+  classDef tf-int-mod fill:#e7b6fc
+  classDef tf-ext-mod fill:#7da8e8
   classDef tf-resource-field-name fill:#eb91c7
 `)
 
@@ -114,9 +114,9 @@ func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[str
 
 		elementModulePath := ""
 		if parentPath == "" && strings.HasPrefix(modPath, "./modules") {
-			elementModulePath = diagramElementTfResourceFromInternalModule(elementModuleID, elementModuleContents)
+			elementModulePath = diagramElementTfInternalModule(elementModuleID, elementModuleContents)
 		} else {
-			elementModulePath = diagramElementTfResourceFromExternalModule(elementModuleID, elementModuleContents)
+			elementModulePath = diagramElementTfExternalModule(elementModuleID, elementModuleContents)
 		}
 
 		// do not print a module that has no resources
@@ -193,12 +193,12 @@ func diagramElementTfResourceFieldName(elementId, elementContent string) string 
 	return diagramElement(elementId, elementContent, "tf-resource-field-name")
 }
 
-func diagramElementTfResourceFromInternalModule(elementId, elementContent string) string {
-	return diagramElementParallelogram(elementId, elementContent, "tf-resource-name-int-mod")
+func diagramElementTfInternalModule(elementId, elementContent string) string {
+	return diagramElementParallelogram(elementId, elementContent, "tf-int-mod")
 }
 
-func diagramElementTfResourceFromExternalModule(elementId, elementContent string) string {
-	return diagramElementAsymmetric(elementId, elementContent, "tf-resource-name-ext-mod")
+func diagramElementTfExternalModule(elementId, elementContent string) string {
+	return diagramElementAsymmetric(elementId, elementContent, "tf-ext-mod")
 }
 
 func diagramElementID(text string) string {
