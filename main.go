@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"os"
-	"strings"
 
 	"github.com/keenbytes/broccli/v3"
 	yaml "gopkg.in/yaml.v2"
@@ -17,12 +16,14 @@ func main() {
 	cmd := cli.Command("gen", "Generate diagram", genHandler)
 	cmd.Arg("path", "DIR", "Path to directory with terraform code", broccli.TypePathFile, broccli.IsDirectory|broccli.IsExistent|broccli.IsRequired)
 	cmd.Arg("type", "RESOURCE_TYPE", "Type of the resource to search for", broccli.TypeString, broccli.IsRequired)
+	cmd.Arg("output", "FILE", "Path to an output file", broccli.TypePathFile, broccli.IsRequired)
 	cmd.Flag("overrides", "o", "FILE", "File with local paths to external modules", broccli.TypePathFile, broccli.IsRegularFile)
 	cmd.Flag("debug", "d", "", "Debug mode", broccli.TypeBool, 0)
 
 	os.Exit(cli.Run(context.Background()))
 }
 
+/*
 func getModulePathFromExternalModuleSource(source string) string {
 	arr := strings.Split(source, "|")
 	if len(arr) == 2 {
@@ -58,7 +59,7 @@ func getVersionFromExternalModuleSource(source string) string {
 	}
 
 	return ""
-}
+}*/
 
 func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	logLevel := slog.LevelInfo
@@ -75,6 +76,7 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 
 	terraformDir := cli.Arg("path")
 	resourceType := cli.Arg("type")
+	outputFile := cli.Arg("output")
 
 	overridesPath := cli.Flag("overrides")
 
@@ -84,7 +86,7 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 		overrides, err = getOverrides(overridesPath)
 		if err != nil {
 			slog.Error(
-					"Error getting overrides",
+					"error getting overrides",
 					slog.String("path", overridesPath),
 					slog.String("error", errorGettingOverrides(err).Error()),
 				)
@@ -95,7 +97,7 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 			err = traverseTerraformDirectory(externalModule.LocalPath, externalModule.Source, resourceType)
 			if err != nil {
 				slog.Error(
-					"Error traversing override external module in local path",
+					"error traversing override external module in local path",
 					slog.String("path", externalModule.LocalPath),
 					slog.String("error", errorTraversingTerraformDir(err).Error()),
 				)
@@ -107,7 +109,7 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	err = traverseTerraformDirectory(terraformDir, ".", resourceType)
 	if err != nil {
 		slog.Error(
-			"Error traversing root terraform dir",
+			"error traversing root terraform dir",
 			slog.String("path", terraformDir),
 			slog.String("resourceType", resourceType),
 			slog.String("error", errorTraversingTerraformDir(err).Error()),
@@ -120,14 +122,14 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 			continue
 		}
 		slog.Info(
-			"Got external module:",
+			"got external module:",
 			slog.String("module", key),
 			slog.String("path", dir.Root),
 		)
 	}
 
 	// generate for the root dir
-	genMermaid(allDirs["."].Dirs, resourceType)
+	genMermaid(allDirs["."].Dirs, resourceType, outputFile)
 
 	return 0
 }

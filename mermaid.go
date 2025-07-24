@@ -2,12 +2,14 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 )
 
-func genMermaid(dirs map[string]*Directory, resourceTypeToFind string) {
+func genMermaid(dirs map[string]*Directory, resourceTypeToFind string, outputFile string) {
 	mermaidDiagram := &strings.Builder{}
 
 	mermaidDiagram.WriteString(`---
@@ -62,7 +64,14 @@ flowchart LR
 		writeModulesDiagramCode(mermaidDiagram, dir.Modules, elementTfPathID, elementTfPath, resourceTypeToFind, "")
 	}
 
-	fmt.Fprint(os.Stdout, mermaidDiagram.String())
+	err := os.WriteFile(filepath.Clean(outputFile), []byte(mermaidDiagram.String()), 0600)
+	if err != nil {
+		slog.Error(
+			"error writing output file",
+			slog.String("path", outputFile),
+			slog.String("error", err.Error()),
+		)
+	}
 }
 
 func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[string]*Directory, elementTfPathID string, elementTfPath string, resourceTypeToFind string, parentPath string) {

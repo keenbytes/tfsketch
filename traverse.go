@@ -212,7 +212,7 @@ func processModulesInDirs(dirs map[string]*Directory, dirsModules map[string]*Di
 					}
 				}*/
 				slog.Error(
-					"External module not found in allDirs",
+					"external module not found in allDirs",
 					slog.String("module", modulePath),
 				)
 				continue
@@ -228,7 +228,7 @@ func processModulesInDirs(dirs map[string]*Directory, dirsModules map[string]*Di
 			rootExternalDirModule, ok := externalDirModule.Dirs[firstExternalDirModuleKey]
 			if !ok {
 				slog.Error(
-					"Root not found for external module",
+					"root not found for external module",
 					slog.String("module", modulePath),
 				)
 				continue
