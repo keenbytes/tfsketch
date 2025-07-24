@@ -87,6 +87,7 @@ func walkDirAndReturnsDirectories(root string, externalModuleName string) (map[s
 						DisplayPath: dirWithoutRoot,
 						Resources:   map[string]*Resource{},
 						Modules: map[string]*Directory{},
+						ModulesForEach: map[string]string{},
 						ModuleName: externalModuleName,
 					}
 				}
@@ -98,6 +99,7 @@ func walkDirAndReturnsDirectories(root string, externalModuleName string) (map[s
 						DisplayPath: dirWithoutRoot,
 						Resources:   map[string]*Resource{},
 						Modules: map[string]*Directory{},
+						ModulesForEach: map[string]string{},
 						ModuleName: externalModuleName,
 					}
 				}
@@ -158,7 +160,6 @@ func processDirs(dirs map[string]*Directory, resourceTypeToMatch string) {
 					resourceName := block.Labels[1]
 					if resourceType == resourceTypeToMatch {
 						nameField, _ := getResourceNameField(block)
-						// todo: handle error
 
 						forEachFound, forEachValue, _ := getResourceForEachField(block)
 						if forEachFound && forEachValue == "" {
@@ -190,7 +191,14 @@ func processDirs(dirs map[string]*Directory, resourceTypeToMatch string) {
 					sourceField, versionField, _ := getSourceVersionFields(block)
 
 					if sourceField != "../" {
-						directory.Modules[moduleResourceName+":"+sourceField+"@"+versionField] = nil
+						forEachFound, forEachValue, _ := getResourceForEachField(block)
+						if forEachFound && forEachValue == "" {
+							forEachValue = "not-parsed"
+						}
+
+						moduleKey := moduleResourceName+":"+sourceField+"@"+versionField
+						directory.Modules[moduleKey] = nil
+						directory.ModulesForEach[moduleKey] = forEachValue
 
 						slog.Debug(
 							"got module reference",

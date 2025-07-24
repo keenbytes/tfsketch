@@ -46,6 +46,7 @@ type Directory struct {
 	DisplayPath string
 	Resources   map[string]*Resource
 	Modules map[string]*Directory
+	ModulesForEach map[string]string
 	ModuleName string
 }
 

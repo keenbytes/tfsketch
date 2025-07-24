@@ -15,6 +15,7 @@ resource "resource_type" "acc2_2" {
 }
 
 module "acc2-mod1-1" {
+  for_each = local.aaa
   source = "./modules/module-1"
 }
 

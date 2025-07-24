@@ -61,18 +61,17 @@ flowchart LR
 			elementResourceNameID := elementTfPathID + "___" + diagramElementID(resource.Name)
 			elementResourceNameContents := "Resource: " + resourceTypeToFind + "." + resource.Name
 			
-			elementResourceName := diagramElementTfResource(elementResourceNameID, elementResourceNameContents)
+			multiple := false
 			if resource.ForEach != "" {
-				elementResourceName = diagramElementTfResourceWithForEach(elementResourceNameID, elementResourceNameContents)
+				multiple = true
 			}
+
+			elementResourceName := diagramElementTfResource(elementResourceNameID, elementResourceNameContents, multiple)
 
 			elementResourceFieldNameID := elementResourceNameID + "___FieldName"
 			elementResourceFieldNameContents := resource.FieldName
 
-			elementResourceFieldName := diagramElementTfResourceFieldName(elementResourceFieldNameID, elementResourceFieldNameContents)
-			if resource.ForEach != "" {
-				elementResourceFieldName = diagramElementTfResourceFieldNameWithForEach(elementResourceFieldNameID, elementResourceFieldNameContents)
-			}
+			elementResourceFieldName := diagramElementTfResourceFieldName(elementResourceFieldNameID, elementResourceFieldNameContents, multiple)
 
 			_, _ = mermaidDiagram.WriteString(
 				fmt.Sprintf(
@@ -84,7 +83,7 @@ flowchart LR
 			)
 		}
 
-		writeModulesDiagramCode(mermaidDiagram, dir.Modules, elementTfPathID, elementTfPath, resourceTypeToFind, "", "")
+		writeModulesDiagramCode(mermaidDiagram, dir.Modules, dir.ModulesForEach, elementTfPathID, elementTfPath, resourceTypeToFind, "", "", false)
 	}
 
 	err := os.WriteFile(filepath.Clean(outputFile), []byte(mermaidDiagram.String()), 0600)
@@ -97,7 +96,7 @@ flowchart LR
 	}
 }
 
-func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[string]*Directory, elementTfPathID string, elementTfPath string, resourceTypeToFind string, parentPath string, parentElementID string) {
+func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[string]*Directory, dirModulesForEach map[string]string, elementTfPathID string, elementTfPath string, resourceTypeToFind string, parentPath string, parentElementID string, multiple bool) {
 	for moduleKey, dirModule := range dirModules {
 		if dirModule == nil {
 			continue
@@ -125,11 +124,15 @@ func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[str
 
 		elementModuleID := elementTfPathID + "___mod___" + diagramElementID(dirModule.DisplayPath) + "___" + elementModuleIDResourceNamePart
 
+		if parentPath == "" && dirModulesForEach[moduleKey] != "" {
+			multiple = true
+		}
+
 		elementModulePath := ""
 		if parentPath == "" && strings.HasPrefix(modPath, "./modules") {
-			elementModulePath = diagramElementTfInternalModule(elementModuleID, elementModuleContents)
+			elementModulePath = diagramElementTfInternalModule(elementModuleID, elementModuleContents, multiple)
 		} else {
-			elementModulePath = diagramElementTfExternalModule(elementModuleID, elementModuleContents)
+			elementModulePath = diagramElementTfExternalModule(elementModuleID, elementModuleContents, multiple)
 		}
 
 		// do not print a module that has no resources
@@ -149,18 +152,21 @@ func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[str
 			elementResourceNameContents := "Resource: " + resource.Name
 			elementResourceName := ""
 			
-			elementResourceName = diagramElementTfResource(elementResourceNameID, elementResourceNameContents)
-			if resource.ForEach != "" {
-				elementResourceName = diagramElementTfResourceWithForEach(elementResourceNameID, elementResourceNameContents)
+			multipleResource := false
+			if multiple {
+				multipleResource = true
 			}
+
+			if !multipleResource && resource.ForEach != "" {
+				multipleResource = true
+			}
+
+			elementResourceName = diagramElementTfResource(elementResourceNameID, elementResourceNameContents, multipleResource)
 			
 			elementResourceFieldNameID := elementResourceNameID + "___FieldName"
 			elementResourceFieldNameContents := resource.FieldName
 			
-			elementResourceFieldName := diagramElementTfResourceFieldName(elementResourceFieldNameID, elementResourceFieldNameContents)
-			if resource.ForEach != "" {
-				elementResourceFieldName = diagramElementTfResourceFieldNameWithForEach(elementResourceFieldNameID, elementResourceFieldNameContents)
-			}
+			elementResourceFieldName := diagramElementTfResourceFieldName(elementResourceFieldNameID, elementResourceFieldNameContents, multipleResource)
 
 			_, _ = mermaidDiagram.WriteString(
 				fmt.Sprintf(
@@ -176,7 +182,7 @@ func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[str
 			continue
 		}
 
-		writeModulesDiagramCode(mermaidDiagram, dirModule.Modules, elementTfPathID, elementTfPath, resourceTypeToFind, newParentPathElement, elementModuleIDResourceNamePart)
+		writeModulesDiagramCode(mermaidDiagram, dirModule.Modules, dirModule.ModulesForEach, elementTfPathID, elementTfPath, resourceTypeToFind, newParentPathElement, elementModuleIDResourceNamePart, multiple)
 	}
 }
 
@@ -188,44 +194,36 @@ func diagramElement(elementId, elementContent, classDef string) string {
 	return fmt.Sprintf("%s[\"%s\"]:::%s", elementId, elementContent, classDef)
 }
 
-func diagramElementParallelogram(elementId, elementContent, classDef string) string {
-	return fmt.Sprintf("%s[/\"%s\"/]:::%s", elementId, elementContent, classDef)
-}
-
-func diagramElementAsymmetric(elementId, elementContent, classDef string) string {
-	return fmt.Sprintf("%s>\"%s\"]:::%s", elementId, elementContent, classDef)
-}
-
 func diagramElementTfPath(elementId, elementContent string) string {
-	return diagramElementParallelogram(elementId, elementContent, "tf-path")
+	return diagramElement(elementId, elementContent, "tf-path")
 }
 
-func diagramElementTfResource(elementId, elementContent string) string {
-	return diagramElement(elementId, elementContent, "tf-resource-name")
+func diagramElementTfResource(elementId, elementContent string, multiple bool) string {
+	return diagramElement(elementId, elementContent, "tf-resource-name" + diagramGetMultipleSuffix(multiple))
 }
 
-func diagramElementTfResourceWithForEach(elementId, elementContent string) string {
-	return diagramElement(elementId, elementContent, "tf-resource-name@{ shape: procs }")
+func diagramElementTfResourceFieldName(elementId, elementContent string, multiple bool) string {
+	return diagramElement(elementId, elementContent, "tf-resource-field-name" + diagramGetMultipleSuffix(multiple))
 }
 
-func diagramElementTfResourceFieldName(elementId, elementContent string) string {
-	return diagramElement(elementId, elementContent, "tf-resource-field-name")
+func diagramElementTfInternalModule(elementId, elementContent string, multiple bool) string {
+	return diagramElement(elementId, elementContent, "tf-int-mod" + diagramGetMultipleSuffix(multiple))
 }
 
-func diagramElementTfResourceFieldNameWithForEach(elementId, elementContent string) string {
-	return diagramElement(elementId, elementContent, "tf-resource-field-name@{ shape: procs }")
-}
-
-func diagramElementTfInternalModule(elementId, elementContent string) string {
-	return diagramElementParallelogram(elementId, elementContent, "tf-int-mod")
-}
-
-func diagramElementTfExternalModule(elementId, elementContent string) string {
-	return diagramElementAsymmetric(elementId, elementContent, "tf-ext-mod")
+func diagramElementTfExternalModule(elementId, elementContent string, multiple bool) string {
+	return diagramElement(elementId, elementContent, "tf-ext-mod" + diagramGetMultipleSuffix(multiple))
 }
 
 func diagramElementID(text string) string {
 	text = strings.ReplaceAll(text, "/", "_")
 	text = clearString(text)
 	return text
+}
+
+func diagramGetMultipleSuffix(multiple bool) string {
+	multipleSuffix := ""
+	if multiple { 
+		multipleSuffix = "@{ shape: procs }"
+	}
+	return multipleSuffix
 }
