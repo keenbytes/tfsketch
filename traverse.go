@@ -264,7 +264,24 @@ func processModulesInDirs(dirs map[string]*Directory, dirsModules map[string]*Di
 				)
 				continue
 			}
+
 			directory.Modules[moduleKey] = rootExternalDirModule
+
+			resourcesInside := make([]string, len(rootExternalDirModule.Resources))
+			for _, resource := range rootExternalDirModule.Resources {
+				resourcesInside = append(resourcesInside, resource.Type+"."+resource.Name)
+			}
+			resourcesInsideString := strings.Join(resourcesInside,",")
+
+			slog.Debug(
+				"assigned external module to directory modules",
+				slog.String("dir", directory.FullPath),
+				slog.String("module_key", moduleKey),
+				slog.String("dir_module_module_name", rootExternalDirModule.ModuleName),
+				slog.Int("dir_module_resources_num", len(rootExternalDirModule.Resources)),
+				slog.Int("dir_module_modules_num", len(rootExternalDirModule.Modules)),
+				slog.String("resources_inside", resourcesInsideString),
+			)
 		}
 	}
 }
