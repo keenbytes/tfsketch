@@ -15,6 +15,11 @@ func genMermaid(dirs map[string]*Directory, resourceTypeToFind string, outputFil
 	mermaidDiagram.WriteString(`---
 config:
   theme: redux
+  flowchart:
+    diagramPadding: 5
+    padding: 5
+    nodeSpacing: 5
+    wrappingWidth: 700
 ---
 flowchart LR
   classDef tf-path fill:#c87de8
@@ -63,7 +68,7 @@ flowchart LR
 
 			_, _ = mermaidDiagram.WriteString(
 				fmt.Sprintf(
-					"  %s --> %s --> %s\n",
+					"  %s ---> %s --> %s\n",
 					elementTfPath,
 					elementResourceName,
 					elementResourceFieldName,
