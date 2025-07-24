@@ -54,6 +54,7 @@ type Resource struct {
 	Name       string
 	FieldName  string
 	TfFileName string
+	ForEach    string
 }
 
 type DirContainer struct {
@@ -75,6 +76,10 @@ var (
 			},
 			{
 				Name:     "name_prefix",
+				Required: false,
+			},
+			{
+				Name:     "for_each",
 				Required: false,
 			},
 		},

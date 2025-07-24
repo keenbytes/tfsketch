@@ -10,6 +10,8 @@ resource "resource_type" "resource_name_mod1_1" {
 }
 
 resource "resource_type" "resource_name_mod1_2" {
+  for_each = local.something
+
   name = "${local.some_variable}-name-mod1-2"
   key1 = "value1_2"
   key2 = "value2_2"

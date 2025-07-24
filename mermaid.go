@@ -18,7 +18,7 @@ config:
   flowchart:
     diagramPadding: 5
     padding: 5
-    nodeSpacing: 5
+    nodeSpacing: 10
     wrappingWidth: 700
 ---
 flowchart LR
@@ -60,11 +60,19 @@ flowchart LR
 
 			elementResourceNameID := elementTfPathID + "___" + diagramElementID(resource.Name)
 			elementResourceNameContents := "Resource: " + resourceTypeToFind + "." + resource.Name
+			
 			elementResourceName := diagramElementTfResource(elementResourceNameID, elementResourceNameContents)
+			if resource.ForEach != "" {
+				elementResourceName = diagramElementTfResourceWithForEach(elementResourceNameID, elementResourceNameContents)
+			}
 
 			elementResourceFieldNameID := elementResourceNameID + "___FieldName"
 			elementResourceFieldNameContents := resource.FieldName
+
 			elementResourceFieldName := diagramElementTfResourceFieldName(elementResourceFieldNameID, elementResourceFieldNameContents)
+			if resource.ForEach != "" {
+				elementResourceFieldName = diagramElementTfResourceFieldNameWithForEach(elementResourceFieldNameID, elementResourceFieldNameContents)
+			}
 
 			_, _ = mermaidDiagram.WriteString(
 				fmt.Sprintf(
@@ -141,16 +149,18 @@ func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[str
 			elementResourceNameContents := "Resource: " + resource.Name
 			elementResourceName := ""
 			
-			// only first level modules can be displayed as internal
-			if parentPath == "" && strings.HasPrefix(modPath, "./modules") {
-				elementResourceName = diagramElementTfResource(elementResourceNameID, elementResourceNameContents)
-			} else {
-				elementResourceName = diagramElementTfResource(elementResourceNameID, elementResourceNameContents)
+			elementResourceName = diagramElementTfResource(elementResourceNameID, elementResourceNameContents)
+			if resource.ForEach != "" {
+				elementResourceName = diagramElementTfResourceWithForEach(elementResourceNameID, elementResourceNameContents)
 			}
-
+			
 			elementResourceFieldNameID := elementResourceNameID + "___FieldName"
 			elementResourceFieldNameContents := resource.FieldName
+			
 			elementResourceFieldName := diagramElementTfResourceFieldName(elementResourceFieldNameID, elementResourceFieldNameContents)
+			if resource.ForEach != "" {
+				elementResourceFieldName = diagramElementTfResourceFieldNameWithForEach(elementResourceFieldNameID, elementResourceFieldNameContents)
+			}
 
 			_, _ = mermaidDiagram.WriteString(
 				fmt.Sprintf(
@@ -194,8 +204,16 @@ func diagramElementTfResource(elementId, elementContent string) string {
 	return diagramElement(elementId, elementContent, "tf-resource-name")
 }
 
+func diagramElementTfResourceWithForEach(elementId, elementContent string) string {
+	return diagramElement(elementId, elementContent, "tf-resource-name@{ shape: procs }")
+}
+
 func diagramElementTfResourceFieldName(elementId, elementContent string) string {
 	return diagramElement(elementId, elementContent, "tf-resource-field-name")
+}
+
+func diagramElementTfResourceFieldNameWithForEach(elementId, elementContent string) string {
+	return diagramElement(elementId, elementContent, "tf-resource-field-name@{ shape: procs }")
 }
 
 func diagramElementTfInternalModule(elementId, elementContent string) string {

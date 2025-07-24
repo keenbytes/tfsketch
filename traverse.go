@@ -160,11 +160,17 @@ func processDirs(dirs map[string]*Directory, resourceTypeToMatch string) {
 						nameField, _ := getResourceNameField(block)
 						// todo: handle error
 
+						forEachFound, forEachValue, _ := getResourceForEachField(block)
+						if forEachFound && forEachValue == "" {
+							forEachValue = "not-parsed"
+						}
+
 						directory.Resources[resourceName] = &Resource{
 							Type:       resourceType,
 							Name:       resourceName,
 							FieldName:  nameField,
 							TfFileName: file.Name(),
+							ForEach:    forEachValue,
 						}
 
 						slog.Debug(
@@ -174,6 +180,7 @@ func processDirs(dirs map[string]*Directory, resourceTypeToMatch string) {
 							slog.String("type", resourceType),
 							slog.String("field_name", nameField),
 							slog.String("file", fullPath),
+							slog.String("for_each", forEachValue),
 						)
 					}
 				}
@@ -410,4 +417,54 @@ func getSourceVersionFields(block *hcl.Block) (string, string, error) {
 	}
 
 	return fieldValues["source"], fieldValues["version"], nil
+}
+
+func getResourceForEachField(block *hcl.Block) (bool, string, error) {
+		name := block.Labels[0]
+
+	bodyContent, _, diags := block.Body.PartialContent(TfResourceWithName)
+	if diags.HasErrors() {
+		return false, "", fmt.Errorf("error parsing block %s.%s: %s", block.Type, name, diags.Error())
+	}
+
+	forEachFound := false
+	forEachField := ""
+
+	for attrName, attr := range bodyContent.Attributes {
+		if attrName != "for_each" {
+			continue
+		}
+
+		forEachFound = true
+
+		expr, ok := attr.Expr.(*hclsyntax.TupleConsExpr)
+		if ok {
+			srcRange := expr.SrcRange
+			source, err := os.ReadFile(srcRange.Filename)
+			if err == nil {
+				raw := string(source[srcRange.Start.Byte:srcRange.End.Byte])
+				forEachField = raw
+				forEachField = strings.TrimLeft(forEachField, "\"")
+				forEachField = strings.TrimRight(forEachField, "\"")
+			}
+
+			continue
+		}
+
+		scopeTraversalExpr, ok := attr.Expr.(*hclsyntax.ScopeTraversalExpr)
+		if ok {
+			srcRange := scopeTraversalExpr.SrcRange
+			source, err := os.ReadFile(srcRange.Filename)
+			if err == nil {
+				raw := string(source[srcRange.Start.Byte:srcRange.End.Byte])
+				forEachField = raw
+				forEachField = strings.TrimLeft(forEachField, "\"")
+				forEachField = strings.TrimRight(forEachField, "\"")
+			}
+
+			continue
+		}
+	}
+
+	return forEachFound, forEachField, nil
 }

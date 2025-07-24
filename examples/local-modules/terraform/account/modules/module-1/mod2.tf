@@ -9,7 +9,7 @@ resource "another_resource" "resource_name_mod2" {
 }
 
 resource "resource_type" "resource_name_mod2_2" {
-  for_each = ["val1", "val2"]
+  for_each = local.something
 
   name = "name-mod2-2"
   key1 = "value1_2"
