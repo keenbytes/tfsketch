@@ -13,6 +13,8 @@ import (
 func genMermaid(dirs map[string]*Directory, resourceTypeToFind string, outputFile string) {
 	mermaidDiagram := &strings.Builder{}
 
+	resourceEdges := &strings.Builder{}
+
 	mermaidDiagram.WriteString(`---
 config:
   theme: redux
@@ -82,9 +84,11 @@ flowchart LR
 					elementResourceFieldName,
 				),
 			)
+
+			resourceEdges.WriteString(elementResourceFieldNameID + "\n")
 		}
 
-		writeModulesDiagramCode(mermaidDiagram, dir.Modules, dir.ModulesForEach, elementTfPathID, elementTfPath, resourceTypeToFind, "", "")
+		writeModulesDiagramCode(mermaidDiagram, dir.Modules, dir.ModulesForEach, elementTfPathID, elementTfPath, resourceTypeToFind, "", "", resourceEdges)
 	}
 
 	err := os.WriteFile(filepath.Clean(outputFile), []byte(mermaidDiagram.String()), 0600)
@@ -95,9 +99,19 @@ flowchart LR
 			slog.String("error", err.Error()),
 		)
 	}
+
+	edgesFile := outputFile + ".edges.txt"
+	err = os.WriteFile(filepath.Clean(edgesFile), []byte(resourceEdges.String()), 0600)
+	if err != nil {
+		slog.Error(
+			"error writing file with edges",
+			slog.String("path", edgesFile),
+			slog.String("error", err.Error()),
+		)
+	}
 }
 
-func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[string]*Directory, dirModulesForEach map[string]string, elementTfPathID string, elementTfPath string, resourceTypeToFind string, parentPath string, parentElementID string) {
+func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[string]*Directory, dirModulesForEach map[string]string, elementTfPathID string, elementTfPath string, resourceTypeToFind string, parentPath string, parentElementID string, resourceEdges *strings.Builder) {
 	for moduleKey, dirModule := range dirModules {
 		if dirModule == nil {
 			continue
@@ -178,13 +192,15 @@ func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[str
 					elementResourceFieldName,
 				),
 			)
+
+			resourceEdges.WriteString(elementResourceFieldNameID + "\n")
 		}
 
 		if len(dirModule.Modules) == 0 {
 			continue
 		}
 
-		writeModulesDiagramCode(mermaidDiagram, dirModule.Modules, dirModule.ModulesForEach, elementTfPathID, elementTfPath, resourceTypeToFind, newParentPathElement, elementModuleIDResourceNamePart)
+		writeModulesDiagramCode(mermaidDiagram, dirModule.Modules, dirModule.ModulesForEach, elementTfPathID, elementTfPath, resourceTypeToFind, newParentPathElement, elementModuleIDResourceNamePart, resourceEdges)
 	}
 }
 
