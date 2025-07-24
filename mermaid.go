@@ -71,7 +71,7 @@ flowchart LR
 			)
 		}
 
-		writeModulesDiagramCode(mermaidDiagram, dir.Modules, elementTfPathID, elementTfPath, resourceTypeToFind, "")
+		writeModulesDiagramCode(mermaidDiagram, dir.Modules, elementTfPathID, elementTfPath, resourceTypeToFind, "", "")
 	}
 
 	err := os.WriteFile(filepath.Clean(outputFile), []byte(mermaidDiagram.String()), 0600)
@@ -84,7 +84,7 @@ flowchart LR
 	}
 }
 
-func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[string]*Directory, elementTfPathID string, elementTfPath string, resourceTypeToFind string, parentPath string) {
+func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[string]*Directory, elementTfPathID string, elementTfPath string, resourceTypeToFind string, parentPath string, parentElementID string) {
 	for moduleKey, dirModule := range dirModules {
 		if dirModule == nil {
 			continue
@@ -93,8 +93,6 @@ func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[str
 		modKeyValues := strings.Split(moduleKey, ":")
 		modResourceName := modKeyValues[0]
 		modPath := modKeyValues[1]
-
-		elementModuleID := elementTfPathID + "___mod___" + diagramElementID(dirModule.DisplayPath) + "___" + diagramElementID(modResourceName)
 
 		// let's pass the module name as a parent to the next module inside it
 		parentPathElement := ""
@@ -106,6 +104,13 @@ func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[str
 
 		elementModuleContents := "Resource: " + newParentPathElement + " > " + resourceTypeToFind + "."
 
+		elementModuleIDResourceNamePart := "" 
+		if parentElementID != "" {
+			elementModuleIDResourceNamePart += parentElementID + "___"
+		}
+		elementModuleIDResourceNamePart += diagramElementID(modResourceName)
+
+		elementModuleID := elementTfPathID + "___mod___" + diagramElementID(dirModule.DisplayPath) + "___" + elementModuleIDResourceNamePart
 
 		// looping through module resources
 		for _, resource := range dirModule.Resources {
@@ -137,7 +142,7 @@ func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[str
 			continue
 		}
 
-		writeModulesDiagramCode(mermaidDiagram, dirModule.Modules, elementTfPathID, elementTfPath, resourceTypeToFind, newParentPathElement)
+		writeModulesDiagramCode(mermaidDiagram, dirModule.Modules, elementTfPathID, elementTfPath, resourceTypeToFind, newParentPathElement, elementModuleIDResourceNamePart)
 	}
 }
 
