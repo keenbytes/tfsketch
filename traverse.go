@@ -181,15 +181,26 @@ func processDirs(dirs map[string]*Directory, resourceTypeToMatch string) {
 				if len(block.Labels) == 1 && block.Type == "module" {
 					moduleResourceName := block.Labels[0]
 					sourceField, versionField, _ := getSourceVersionFields(block)
-					directory.Modules[moduleResourceName+":"+sourceField+"@"+versionField] = nil
 
-					slog.Debug(
-						"got module reference",
-						slog.String("directory", dirKey),
-						slog.String("name", moduleResourceName),
-						slog.String("source", sourceField+"@"+versionField),
-						slog.String("file", fullPath),
-					)
+					if sourceField != "../" {
+						directory.Modules[moduleResourceName+":"+sourceField+"@"+versionField] = nil
+
+						slog.Debug(
+							"got module reference",
+							slog.String("directory", dirKey),
+							slog.String("name", moduleResourceName),
+							slog.String("source", sourceField+"@"+versionField),
+							slog.String("file", fullPath),
+						)
+					} else {
+						slog.Debug(
+							"ignoring module because of source",
+							slog.String("source", "../"),
+							slog.String("directory", dirKey),
+							slog.String("name", moduleResourceName),
+							slog.String("file", fullPath),
+						)
+					}
 				}
 			}
 		}
