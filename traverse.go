@@ -156,6 +156,7 @@ func processDirs(dirs map[string]*Directory, resourceTypeToMatch string) {
 
 						slog.Debug(
 							"got resource",
+							slog.String("directory", dirKey),
 							slog.String("name", resourceName),
 							slog.String("type", resourceType),
 							slog.String("field_name", nameField),
@@ -171,6 +172,7 @@ func processDirs(dirs map[string]*Directory, resourceTypeToMatch string) {
 
 					slog.Debug(
 						"got module reference",
+						slog.String("directory", dirKey),
 						slog.String("name", moduleResourceName),
 						slog.String("source", sourceField+"@"+versionField),
 						slog.String("file", fullPath),

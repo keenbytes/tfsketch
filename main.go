@@ -142,7 +142,7 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 			continue
 		}
 		slog.Info(
-			"got external module:",
+			"got external module",
 			slog.String("module", key),
 			slog.String("path", dir.Root),
 		)
