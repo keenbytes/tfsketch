@@ -28,7 +28,6 @@ flowchart LR
 	for dirKey, _ := range dirs {
 		dirKeys = append(dirKeys, dirKey)
 	}
-
 	sort.Strings(dirKeys)
 
 	for _, dirKey := range dirKeys {
@@ -42,7 +41,18 @@ flowchart LR
 		elementTfPathContents := "Path: " + dir.DisplayPath
 		elementTfPath := diagramElementTfPath(elementTfPathID, elementTfPathContents)
 
-		for _, resource := range dir.Resources {
+		resourceKeys := make([]string, len(dir.Resources))
+		for resourceKey, _ := range dir.Resources {
+			resourceKeys = append(resourceKeys, resourceKey)
+		}
+		sort.Strings(resourceKeys)
+
+		for _, resourceKey := range resourceKeys {
+			resource := dir.Resources[resourceKey]
+			if resource == nil {
+				continue
+			}
+
 			elementResourceNameID := elementTfPathID + "___" + diagramElementID(resource.Name)
 			elementResourceNameContents := "Resource: " + resourceTypeToFind + "." + resource.Name
 			elementResourceName := diagramElementTfResource(elementResourceNameID, elementResourceNameContents)
@@ -86,14 +96,16 @@ func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[str
 
 		elementModuleID := elementTfPathID + "___mod___" + diagramElementID(dirModule.DisplayPath) + "___" + diagramElementID(modResourceName)
 
+		// let's pass the module name as a parent to the next module inside it
 		parentPathElement := ""
 		if parentPath != "" {
 			parentPathElement = parentPath + " > "
 		}
+		// new parent path include this element's name
+		newParentPathElement := parentPathElement + "module." + modResourceName
 
-		elementModuleContents := "Resource: " + parentPathElement + "module." + modResourceName + " > " + resourceTypeToFind + "."
+		elementModuleContents := "Resource: " + newParentPathElement + " > " + resourceTypeToFind + "."
 
-		elementModulePathToPassDeeper := parentPathElement + "module." + modResourceName
 
 		// looping through module resources
 		for _, resource := range dirModule.Resources {
@@ -125,7 +137,7 @@ func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[str
 			continue
 		}
 
-		writeModulesDiagramCode(mermaidDiagram, dirModule.Modules, elementTfPathID, elementTfPath, resourceTypeToFind, elementModulePathToPassDeeper)
+		writeModulesDiagramCode(mermaidDiagram, dirModule.Modules, elementTfPathID, elementTfPath, resourceTypeToFind, newParentPathElement)
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	hcl "github.com/hashicorp/hcl/v2"
@@ -101,7 +102,19 @@ func walkDirAndReturnsDirectories(root string, externalModuleName string) (map[s
 func processDirs(dirs map[string]*Directory, resourceTypeToMatch string) {
 	parser := hclparse.NewParser()
 
-	for _, directory := range dirs {
+	dirKeys := make([]string, len(dirs))
+	for dirKey, _ := range dirs {
+		dirKeys = append(dirKeys, dirKey)
+	}
+
+	sort.Strings(dirKeys)
+
+	for _, dirKey := range dirKeys {
+		directory := dirs[dirKey]
+		if directory == nil {
+			continue
+		}
+
 		files, _ := os.ReadDir(directory.FullPath)
 		for _, file := range files {
 			if file.IsDir() || !strings.HasSuffix(file.Name(), ".tf") {
@@ -140,6 +153,14 @@ func processDirs(dirs map[string]*Directory, resourceTypeToMatch string) {
 							FieldName:  nameField,
 							TfFileName: file.Name(),
 						}
+
+						slog.Debug(
+							"got resource",
+							slog.String("name", resourceName),
+							slog.String("type", resourceType),
+							slog.String("field_name", nameField),
+							slog.String("file", file.Name()),
+						)
 					}
 				}
 
@@ -147,6 +168,13 @@ func processDirs(dirs map[string]*Directory, resourceTypeToMatch string) {
 					moduleResourceName := block.Labels[0]
 					sourceField, versionField, _ := getSourceVersionFields(block)
 					directory.Modules[moduleResourceName+":"+sourceField+"@"+versionField] = nil
+
+					slog.Debug(
+						"got module reference",
+						slog.String("name", moduleResourceName),
+						slog.String("source", sourceField+"@"+versionField),
+						slog.String("file", file.Name()),
+					)
 				}
 			}
 		}
@@ -154,7 +182,19 @@ func processDirs(dirs map[string]*Directory, resourceTypeToMatch string) {
 }
 
 func processModulesInDirs(dirs map[string]*Directory, dirsModules map[string]*Directory) {
-	for _, directory := range dirs {
+	dirKeys := make([]string, len(dirs))
+	for dirKey, _ := range dirs {
+		dirKeys = append(dirKeys, dirKey)
+	}
+
+	sort.Strings(dirKeys)
+
+	for _, dirKey := range dirKeys {
+		directory := dirs[dirKey]
+		if directory == nil {
+			continue
+		}
+
 		if len(directory.Modules) == 0 {
 			continue
 		}
@@ -163,6 +203,8 @@ func processModulesInDirs(dirs map[string]*Directory, dirsModules map[string]*Di
 		for moduleKey, _ := range directory.Modules {
 			moduleKeys = append(moduleKeys, moduleKey)
 		}
+
+		sort.Strings(moduleKeys)
 
 		for _, moduleKey := range moduleKeys {
 			// key = ResourceName:Path
