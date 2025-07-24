@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
-	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -22,7 +22,21 @@ flowchart LR
   classDef tf-resource-field-name fill:#eb91c7
 `)
 
-	for _, dir := range dirs {
+	dirKeys := make([]string, len(dirs))
+	for dirKey, _ := range dirs {
+		dirKeys = append(dirKeys, dirKey)
+	}
+
+	sort.Strings(dirKeys)
+
+	//for _, dir := range dirs {
+	for _, dirKey := range dirKeys {
+		var dir *Directory
+		dir = dirs[dirKey]
+		if dir == nil {
+			continue
+		}
+
 		elementTfPathID := diagramElementID(dir.DisplayPath)
 		elementTfPathContents := "Path: " + dir.DisplayPath
 		elementTfPath := diagramElementTfPath(elementTfPathID, elementTfPathContents)
@@ -98,8 +112,6 @@ func writeModulesDiagramCode(mermaidDiagram *strings.Builder, dirModules map[str
 		writeModulesDiagramCode(mermaidDiagram, dirModule.Modules, elementTfPathID, elementTfPath, resourceTypeToFind)
 	}
 }
-
-var nonAlphanumericRegex = regexp.MustCompile(`[^a-zA-Z0-9 ]+`)
 
 func clearString(str string) string {
 	return nonAlphanumericRegex.ReplaceAllString(str, "")

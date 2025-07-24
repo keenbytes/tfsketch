@@ -1,10 +1,8 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io/fs"
-	"log"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -16,30 +14,6 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-var (
-	errTfDirWalk = errors.New("error walking tf dir")
-)
-
-type Directory struct {
-	FullPath    string
-	DisplayPath string
-	Resources   map[string]*Resource
-	Modules map[string]*Directory
-	ModuleName string
-}
-
-type Resource struct {
-	Type       string
-	Name       string
-	FieldName  string
-	TfFileName string
-}
-
-type DirContainer struct {
-	Root string
-	Dirs map[string]*Directory
-	DirsModules map[string]*Directory
-}
 
 func traverseTerraformDirectory(root string, externalModuleName string, resourceType string) error {
 	dirs, dirsModules, err := walkDirAndReturnsDirectories(root, externalModuleName)
@@ -54,21 +28,6 @@ func traverseTerraformDirectory(root string, externalModuleName string, resource
 	}
 
 	allDirs[externalModuleName] = dirContainer
-	// put modules in the external modules in external modules as well
-	/*if externalModuleName != "." {
-		for moduleKey, _ := range dirsModules {
-			relativePathToTheModule, _ := filepath.Rel(root, moduleKey)
-			if relativePathToTheModule != "" {
-				externalModuleInModuleName := externalModuleName + "|" + relativePathToTheModule
-				moduleDirContainer := &DirContainer{
-					Root: moduleKey,
-					Dirs: dirsModules,
-					DirsModules: map[string]*Directory{},
-				}
-				allDirs[externalModuleInModuleName] = moduleDirContainer
-			}
-		}
-	}*/
 
 	processDirs(dirs, resourceType)
 	processDirs(dirsModules, resourceType)
@@ -194,37 +153,6 @@ func processDirs(dirs map[string]*Directory, resourceTypeToMatch string) {
 	}
 }
 
-var (
-	TfResourceWithName = &hcl.BodySchema{
-		Attributes: []hcl.AttributeSchema{
-			{
-				Name:     "name",
-				Required: false,
-			},
-			{
-				Name:     "id",
-				Required: false,
-			},
-			{
-				Name:     "name_prefix",
-				Required: false,
-			},
-		},
-	}
-	TfModule = &hcl.BodySchema{
-		Attributes: []hcl.AttributeSchema{
-			{
-				Name:     "source",
-				Required: false,
-			},
-			{
-				Name:     "version",
-				Required: false,
-			},
-		},
-	}
-)
-
 func processModulesInDirs(dirs map[string]*Directory, dirsModules map[string]*Directory) {
 	for _, directory := range dirs {
 		if len(directory.Modules) == 0 {
@@ -283,7 +211,10 @@ func processModulesInDirs(dirs map[string]*Directory, dirsModules map[string]*Di
 						}
 					}
 				}*/
-				log.Printf("-------------> EXTERNAL MODULE NOT FOUND in allDirs: %s\n", modulePath)
+				slog.Error(
+					"External module not found in allDirs",
+					slog.String("module", modulePath),
+				)
 				continue
 			}
 
@@ -296,7 +227,10 @@ func processModulesInDirs(dirs map[string]*Directory, dirsModules map[string]*Di
 
 			rootExternalDirModule, ok := externalDirModule.Dirs[firstExternalDirModuleKey]
 			if !ok {
-				log.Printf("-------------> ROOT NOT FOUND IN EXTERNAL MODULE: %s\n", modulePath)
+				slog.Error(
+					"Root not found for external module",
+					slog.String("module", modulePath),
+				)
 				continue
 			}
 			directory.Modules[moduleKey] = rootExternalDirModule

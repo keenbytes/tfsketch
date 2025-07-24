@@ -2,34 +2,14 @@ package main
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"log"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/keenbytes/broccli/v3"
 	yaml "gopkg.in/yaml.v2"
 )
 
-var (
-	errTerraformTraverse = errors.New("error traversing dir with tf code")
-)
-
-func errorTraversingTerraformDir(err error) error {
-	return fmt.Errorf("%w: %s", errTerraformTraverse, err.Error())
-}
-
-type Overrides struct {
-	ExternalModules []*ExternalModule `yaml:"externalModules"`
-}
-
-type ExternalModule struct {
-	Source string `yaml:"source"`
-	Version string `yaml:"version"`
-	ModulePath string `yaml:"modulePath,omitempty"`
-	LocalPath string `yaml:"localPath"`
-}
 
 func main() {
 	cli := broccli.NewBroccli("tfsketch", "Generate diagram from Terraform files", "Mikolaj Gasior <m@gasior.dev>")
@@ -43,7 +23,42 @@ func main() {
 	os.Exit(cli.Run(context.Background()))
 }
 
-var allDirs = map[string]*DirContainer{}
+func getModulePathFromExternalModuleSource(source string) string {
+	arr := strings.Split(source, "|")
+	if len(arr) == 2 {
+		return arr[1]
+	}
+
+	return ""
+}
+
+func getSourceFromExternalModuleSource(source string) string {
+	arr := strings.Split(source, "|")
+	if len(arr) == 2 {
+		source = arr[0]
+	}
+
+	arr = strings.Split(source, "@")
+	if len(arr) == 2 {
+		return arr[0]
+	}
+
+	return ""
+}
+
+func getVersionFromExternalModuleSource(source string) string {
+	arr := strings.Split(source, "|")
+	if len(arr) == 2 {
+		source = arr[0]
+	}
+
+	arr = strings.Split(source, "@")
+	if len(arr) == 2 {
+		return arr[1]
+	}
+
+	return ""
+}
 
 func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	logLevel := slog.LevelInfo
@@ -64,33 +79,51 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	overridesPath := cli.Flag("overrides")
 
 	var overrides *Overrides
+	var err error
 	if overridesPath != "" {
-		overrides = getOverrides(overridesPath)
+		overrides, err = getOverrides(overridesPath)
+		if err != nil {
+			slog.Error(
+					"Error getting overrides",
+					slog.String("path", overridesPath),
+					slog.String("error", errorGettingOverrides(err).Error()),
+				)
+				return 3
+		}
+
 		for _, externalModule := range overrides.ExternalModules {
-			externalModuleKey := externalModule.Source+"@"+externalModule.Version
-			if externalModule.ModulePath != "" {
-				externalModuleKey += "|" + externalModule.ModulePath
-			}
-			err := traverseTerraformDirectory(externalModule.LocalPath, externalModuleKey, resourceType)
+			err = traverseTerraformDirectory(externalModule.LocalPath, externalModule.Source, resourceType)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "error traversing override external module in local path %s: %s", externalModule.LocalPath, errorTraversingTerraformDir(err))
+				slog.Error(
+					"Error traversing override external module in local path",
+					slog.String("path", externalModule.LocalPath),
+					slog.String("error", errorTraversingTerraformDir(err).Error()),
+				)
 				return 2
 			}
 		}
 	}
 
-	err := traverseTerraformDirectory(terraformDir, ".", resourceType)
+	err = traverseTerraformDirectory(terraformDir, ".", resourceType)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error traversing root terraform dir: %s", errorTraversingTerraformDir(err))
+		slog.Error(
+			"Error traversing root terraform dir",
+			slog.String("path", terraformDir),
+			slog.String("resourceType", resourceType),
+			slog.String("error", errorTraversingTerraformDir(err).Error()),
+		)
 		return 1
 	}
 
-	fmt.Fprintf(os.Stdout, "\n\nExternal tf modules placed locally (from overrides):\n")
 	for key, dir := range allDirs {
 		if key == "." {
 			continue
 		}
-		fmt.Fprintf(os.Stdout, "%s -> %s\n", key, dir.Root)
+		slog.Info(
+			"Got external module:",
+			slog.String("module", key),
+			slog.String("path", dir.Root),
+		)
 	}
 
 	// generate for the root dir
@@ -99,17 +132,17 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	return 0
 }
 
-func getOverrides(path string) *Overrides {
+func getOverrides(path string) (*Overrides, error) {
 	fileContents, err := os.ReadFile(path)
 	if err != nil {
-		log.Fatal("error reading the overrides file")
+		return nil, errOverridesRead
 	}
 
 	var overridesYaml *Overrides
 	err = yaml.Unmarshal(fileContents, &overridesYaml)
 	if err != nil {
-		log.Fatal("error unmarshalling overrides file")
+		return nil, errOverridesUnmarshal
 	}
 
-	return overridesYaml
+	return overridesYaml, nil
 }
