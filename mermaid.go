@@ -29,7 +29,6 @@ flowchart LR
 
 	sort.Strings(dirKeys)
 
-	//for _, dir := range dirs {
 	for _, dirKey := range dirKeys {
 		var dir *Directory
 		dir = dirs[dirKey]
