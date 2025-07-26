@@ -8,31 +8,14 @@ import (
 	hcl "github.com/hashicorp/hcl/v2"
 )
 
-var allDirs = map[string]*DirContainer{}
-
 
 var (
 	errTerraformTraverse = errors.New("error traversing dir with tf code")
 	errOverrideGet = errors.New("error getting overrides")
-	errOverridesRead = errors.New("error reading overrides file")
-	errOverridesUnmarshal = errors.New("error unmarshaling overrides yaml file")
 )
 
 func errorTraversingTerraformDir(err error) error {
 	return fmt.Errorf("%w: %s", errTerraformTraverse, err.Error())
-}
-
-func errorGettingOverrides(err error) error {
-	return fmt.Errorf("%w: %s", errOverrideGet, err.Error())
-}
-
-type Overrides struct {
-	ExternalModules []*ExternalModule `yaml:"externalModules"`
-}
-
-type ExternalModule struct {
-	Source string `yaml:"source"`
-	LocalPath string `yaml:"localPath"`
 }
 
 var nonAlphanumericRegex = regexp.MustCompile(`[^a-zA-Z0-9 ]+`)
