@@ -12,10 +12,17 @@ import (
 
 var (
 	errOverrideReadFromFile = errors.New("error reading overrides from file")
-	errOverrideTraverse = errors.New("error traversing overrides")
+	errOverrideTraverse     = errors.New("error traversing overrides")
+	errOverrideLinkModule   = errors.New("error linking override modules")
+	errTfDirTraverse        = errors.New("error traversing terraform directory")
+	errTfDirLink            = errors.New("error linkin terraform directory modules with external modules")
 )
 
-var allDirs = map[string]*DirContainer{}
+var allTfPaths = map[string]*tfPath{}
+
+const (
+	linkModuleIterationsNum = 10
+)
 
 func main() {
 	cli := broccli.NewBroccli("tfsketch", "Generate diagram from Terraform files", "Mikolaj Gasior <m@gasior.dev>")
@@ -37,7 +44,7 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	resourceType := cli.Arg("type")
 	outputFile := cli.Arg("output")
 
-	err := traverseOverrides(cli.Flag("overrides"), resourceType)
+	err := traverseAndLinkOverrides(cli.Flag("overrides"), resourceType)
 	if err != nil {
 		return 3
 	}
@@ -45,27 +52,37 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	err = traverseTerraformDirectory(terraformDir, ".", resourceType)
 	if err != nil {
 		slog.Error(
-			"error traversing root terraform dir",
+			errTfDirTraverse.Error(),
 			slog.String("path", terraformDir),
 			slog.String("resourceType", resourceType),
-			slog.String("error", errorTraversingTerraformDir(err).Error()),
+			slog.String("error", err.Error()),
+		)
+		return 2
+	}
+
+	_, err = linkExternalModulesInTerraformDirectory(allTfPaths["."], ".", 0)
+	if err != nil {
+		slog.Error(
+			errTfDirLink.Error(),
+			slog.String("path", terraformDir),
+			slog.String("error", err.Error()),
 		)
 		return 1
 	}
 
-	for key, dir := range allDirs {
+	for key, dir := range allTfPaths {
 		if key == "." {
 			continue
 		}
 		slog.Info(
 			"got external module",
 			slog.String("module", key),
-			slog.String("path", dir.Root),
+			slog.String("path", dir.path),
 		)
 	}
 
 	// generate for the root dir
-	genMermaid(allDirs["."].Dirs, resourceType, outputFile)
+	genMermaid(allTfPaths["."], resourceType, outputFile)
 
 	return 0
 }
@@ -75,7 +92,7 @@ func setLogger(debug string) {
 	if debug == "true" {
 		logLevel = slog.LevelDebug
 	}
-	
+
 	opts := &slog.HandlerOptions{
 		Level: logLevel,
 	}
@@ -83,7 +100,7 @@ func setLogger(debug string) {
 	slog.SetDefault(logger)
 }
 
-func traverseOverrides(path string, resourceType string) error {
+func traverseAndLinkOverrides(path string, resourceType string) error {
 	if path == "" {
 		return nil
 	}
@@ -111,22 +128,49 @@ func traverseOverrides(path string, resourceType string) error {
 				return fmt.Errorf("%w: %w", errOverrideTraverse, err)
 			}
 
-			for dirKey, dir := range allDirs[externalModule.Source].Dirs {
+			for dirKey, dir := range allTfPaths[externalModule.Source].tfPaths {
+				_, isModule := allTfPaths[externalModule.Source].tfPathsModules[dirKey]
 				slog.Debug(
 					"got directory from traversing an override",
-					slog.String("module", externalModule.Source),
-					slog.String("directory", dir.FullPath),
+					slog.String("override", externalModule.Source),
+					slog.String("directory", dir.path),
 					slog.String("key", dirKey),
+					slog.String("is_module", fmt.Sprintf("%v", isModule)),
+					slog.Int("resources_num", len(dir.resources)),
 				)
 			}
+		}
 
-			for dirKey, dirModule := range allDirs[externalModule.Source].DirsModules {
+		// link modules
+		for iteration := 0; iteration < linkModuleIterationsNum; iteration++ {
+			continueLinking := false
+
+			for moduleKey, tfPath := range allTfPaths {
 				slog.Debug(
-					"got module directory from traversing an override",
-					slog.String("module", externalModule.Source),
-					slog.String("directory", dirModule.FullPath),
-					slog.String("key", dirKey),
+					"linking external module to another external module",
+					slog.String("module_key", moduleKey),
+					slog.String("path", tfPath.path),
+					slog.Int("resources_num", len(tfPath.resources)),
+					slog.Int("iteration", iteration),
 				)
+				externalModulesMissing, err := linkExternalModulesInTerraformDirectory(tfPath, moduleKey, iteration)
+				if externalModulesMissing {
+					continueLinking = true
+				}
+				if err != nil {
+					slog.Error(
+						errOverrideLinkModule.Error(),
+						slog.String("module_path", tfPath.path),
+						slog.String("module_key", moduleKey),
+						slog.String("error", err.Error()),
+						slog.Int("iteration", iteration),
+					)
+					return fmt.Errorf("%w: %w", errOverrideTraverse, err)
+				}
+			}
+
+			if !continueLinking {
+				break
 			}
 		}
 

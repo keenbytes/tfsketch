@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	ErrRead = errors.New("error reading file")
+	ErrRead      = errors.New("error reading file")
 	ErrUnmarshal = errors.New("error unmarshaling yaml file")
 )
 
