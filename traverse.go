@@ -275,7 +275,7 @@ func processModulesInDirs(dirs map[string]*Directory, dirsModules map[string]*Di
 				continue
 			}
 
-			if directory.ModuleName != "." && !strings.HasPrefix(modulePath, ".") {
+			if directory.ModuleName != "." && strings.HasPrefix(modulePath, ".") {
 				modulePath = directory.ModuleName + "|" + strings.Replace(modulePath, "@", "", 1)
 			}
 
