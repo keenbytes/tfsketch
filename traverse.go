@@ -58,7 +58,7 @@ func walkDirAndReturnsDirectories(root string, externalModuleName string) (map[s
 				isModulesDir = true
 				break
 			}
-			if part == "examples" || part == "example" {
+			if part == "examples" || part == "example" || part == "tests" {
 				isExamplesDir = true
 				break
 			}
