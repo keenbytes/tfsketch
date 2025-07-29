@@ -40,7 +40,7 @@ func errLinkDirModulesWithPath(path string) error {
 }
 
 var (
-	regexpDirPartToIgnore         = regexp.MustCompile(`^example[s]*$`)
+	regexpDirPartToIgnore         = regexp.MustCompile(`^(example[s]*|test[s]*)$`)
 	regexpDirPartIndicatingModule = regexp.MustCompile(`^modules$`)
 )
 
