@@ -52,7 +52,7 @@ func genMermaid(tfPath *tfPath, resourceTypeToFind string, outputFile string) {
 			continue
 		}
 
-		slog.Error(
+		slog.Info(
 			"generating mermaid for path",
 			slog.String("path", subTfPath.path),
 		)
@@ -70,7 +70,7 @@ func genMermaid(tfPath *tfPath, resourceTypeToFind string, outputFile string) {
 				continue
 			}
 
-			slog.Error(
+			slog.Info(
 				"generating mermaid for resource",
 				slog.String("path", subTfPath.path),
 				slog.String("resource", resource.name),
@@ -129,7 +129,7 @@ func genMermaid(tfPath *tfPath, resourceTypeToFind string, outputFile string) {
 func genModules(mermaidDiagram *strings.Builder, resourceEdges *strings.Builder, tfPath *tfPath, elTfPathID, resourceTypeToFind, elParentLabel, elParentID string) {
 	sortedModules := tfPath.modulesSorted()
 
-	slog.Error(
+	slog.Info(
 		"generating mermaid for modules",
 		slog.String("path", tfPath.path),
 	)
@@ -144,10 +144,11 @@ func genModules(mermaidDiagram *strings.Builder, resourceEdges *strings.Builder,
 			continue
 		}
 
-		slog.Error(
+		slog.Info(
 			"generating mermaid for module",
 			slog.String("path", tfPath.path),
 			slog.String("module", moduleSource),
+			slog.String("module_tfpath", fmt.Sprintf("%v", module.tfPath)),
 		)
 
 		moduleName := moduleSourceArray[0]
