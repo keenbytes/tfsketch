@@ -54,6 +54,10 @@ const (
 	tfExtension = ".tf"
 )
 
+const (
+	linkModulesMaxRecursion = 5
+)
+
 // tfPath represents a path that contains terraform code.
 type tfPath struct {
 	// path is the full path.
@@ -321,25 +325,34 @@ func (t *tfPath) parseHCLBlockModule(block *hcl.Block) (*module, error) {
 	return moduleInstance, nil
 }
 
-func (t *tfPath) linkModulesInSubdirectories() error {
-	err := t.linkModules(t)
-	if err != nil {
-		return fmt.Errorf("%w: %w", errLinkDirModulesWithPath(t.path), err)
+func (t *tfPath) linkModules(tfPath *tfPath, depth int) error {
+	if depth == linkModulesMaxRecursion {
+		return nil
 	}
 
-	pathsSorted := t.tfPathsSorted()
+	err := t.linkModulesInPath(tfPath, depth)
+	if err != nil {
+		return fmt.Errorf("%w: %w", errLinkDirModulesWithPath(tfPath.path), err)
+	}
+
+	pathsSorted := tfPath.tfPathsSorted()
 	for _, pathKey := range pathsSorted {
-		subTfPath := t.tfPaths[pathKey]
+		subTfPath := tfPath.tfPaths[pathKey]
 		if subTfPath == nil {
 			continue
 		}
 
-		_, isModuleDir := t.tfPathsModules[pathKey]
+		_, isModuleDir := tfPath.tfPathsModules[pathKey]
 		if isModuleDir {
 			continue
 		}
 
-		err := t.linkModules(subTfPath)
+		err := t.linkModulesInPath(subTfPath, depth)
+		if err != nil {
+			return fmt.Errorf("%w: %w", errLinkDirModulesWithPath(subTfPath.path), err)
+		}
+
+		err = t.linkModules(subTfPath, depth+1)
 		if err != nil {
 			return fmt.Errorf("%w: %w", errLinkDirModulesWithPath(subTfPath.path), err)
 		}
@@ -348,7 +361,7 @@ func (t *tfPath) linkModulesInSubdirectories() error {
 	return nil
 }
 
-func (t *tfPath) linkModules(tfPath *tfPath) error {
+func (t *tfPath) linkModulesInPath(tfPath *tfPath, depth int) error {
 	if len(tfPath.modules) == 0 {
 		return nil
 	}
@@ -390,6 +403,7 @@ func (t *tfPath) linkModules(tfPath *tfPath) error {
 			slog.String("path_module_name", moduleSourceArray[0]),
 			slog.String("path_module_path", modulePath),
 			slog.Int("resource_num", len(moduleTfPath.resources)),
+			slog.Int("depth", depth),
 		)
 	}
 

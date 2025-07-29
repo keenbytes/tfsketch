@@ -32,7 +32,7 @@ func traverseTerraformDirectory(path string, moduleSource string, resourceType s
 		return fmt.Errorf("%w: %w", errTfPathParse, err)
 	}
 
-	err = tfPathInstance.linkModulesInSubdirectories()
+	err = tfPathInstance.linkModules(&tfPathInstance, 1)
 	if err != nil {
 		return fmt.Errorf("%w: %w", errTfPathLinkSubdirModules, err)
 	}
