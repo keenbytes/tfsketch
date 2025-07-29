@@ -52,6 +52,11 @@ func genMermaid(tfPath *tfPath, resourceTypeToFind string, outputFile string) {
 			continue
 		}
 
+		slog.Error(
+			"generating mermaid for path",
+			slog.String("path", subTfPath.path),
+		)
+
 		// directory (tf path) element on the diagram
 		elTfPathID := elID(subTfPath.relPath)
 		elTfPathLabel := subTfPath.relPath
@@ -64,6 +69,12 @@ func genMermaid(tfPath *tfPath, resourceTypeToFind string, outputFile string) {
 			if resource == nil {
 				continue
 			}
+
+			slog.Error(
+				"generating mermaid for resource",
+				slog.String("path", subTfPath.path),
+				slog.String("resource", resource.name),
+			)
 
 			partForEach := ""
 			if resource.fieldForEach != "" {
@@ -118,6 +129,11 @@ func genMermaid(tfPath *tfPath, resourceTypeToFind string, outputFile string) {
 func genModules(mermaidDiagram *strings.Builder, resourceEdges *strings.Builder, tfPath *tfPath, elTfPathID, resourceTypeToFind, elParentLabel, elParentID string) {
 	sortedModules := tfPath.modulesSorted()
 
+	slog.Error(
+		"generating mermaid for modules",
+		slog.String("path", tfPath.path),
+	)
+	
 	for _, moduleSource := range sortedModules {
 		module := tfPath.modules[moduleSource]
 		if module == nil {
@@ -127,6 +143,12 @@ func genModules(mermaidDiagram *strings.Builder, resourceEdges *strings.Builder,
 		if len(moduleSourceArray) != 2 {
 			continue
 		}
+
+		slog.Error(
+			"generating mermaid for module",
+			slog.String("path", tfPath.path),
+			slog.String("module", moduleSource),
+		)
 
 		moduleName := moduleSourceArray[0]
 		modulePath := moduleSourceArray[1]
