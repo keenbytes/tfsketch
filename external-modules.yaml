@@ -1,7 +1,5 @@
 externalModules:
-  - source: external-tf-module-4@0.1.0|../indirectly-1
-    localPath: "/Users/nicholas/Repositories/github.com/KeenBytes/tf-module-2/modules/indirectly-1"
-  - source: external-tf-module-2@0.1.0
-    localPath: "/Users/nicholas/Repositories/github.com/KeenBytes/tf-module-2"
-  - source: external-tf-module-4@0.1.0
-    localPath: "/Users/nicholas/Repositories/github.com/KeenBytes/tf-module-2/modules/module-4"
+  - remote: external-tf-module-2@0.1.0
+    local: "/Users/nicholas/Repositories/github.com/KeenBytes/tf-module-2"
+  - remote: external-tf-module-4@0.1.0
+    local: "/Users/nicholas/Repositories/github.com/KeenBytes/tf-module-2/modules/module-4"

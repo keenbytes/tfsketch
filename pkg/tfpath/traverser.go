@@ -1,0 +1,533 @@
+package tfpath
+
+import (
+	"fmt"
+	"io/fs"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/zclconf/go-cty/cty"
+)
+
+const (
+	dirTypeNormal = iota
+	dirTypeModule
+	dirTypeIgnore
+)
+
+const (
+	tfExtension = ".tf"
+	linkModulesMaxRecursion = 5
+)
+
+var (
+	tfResourceDefinition = &hcl.BodySchema{
+		Attributes: []hcl.AttributeSchema{
+			{
+				Name:     "name",
+				Required: false,
+			},
+			{
+				Name:     "id",
+				Required: false,
+			},
+			{
+				Name:     "name_prefix",
+				Required: false,
+			},
+			{
+				Name:     "for_each",
+				Required: false,
+			},
+		},
+	}
+	tfModuleDefinition = &hcl.BodySchema{
+		Attributes: []hcl.AttributeSchema{
+			{
+				Name:     "source",
+				Required: false,
+			},
+			{
+				Name:     "version",
+				Required: false,
+			},
+		},
+	}
+)
+
+type Traverser struct {
+	RegexpIgnoreDir *regexp.Regexp
+	RegexpModuleDir *regexp.Regexp
+	Container *Container
+	ResourceType string
+	Parser *hclparse.Parser
+}
+
+func NewTraverser(container *Container, resourceType string) *Traverser{
+	traverser := &Traverser{
+		Parser: hclparse.NewParser(),
+		RegexpIgnoreDir: regexp.MustCompile(`^(example[s]*|test[s]*)$`),
+		RegexpModuleDir: regexp.MustCompile(`^modules$`),
+		Container: container,
+		ResourceType: resourceType,
+	}
+
+	return traverser
+}
+
+func (t *Traverser) WalkPath(tfPath *TfPath, extractModules bool) error {
+	newContainerPaths, err := t.walk(tfPath, extractModules)
+	if err != nil {
+		return fmt.Errorf("error walking terraform path %s: %s", tfPath.Path, err.Error())
+	}
+	if extractModules && len(newContainerPaths) > 0 {
+		for _, newPath := range newContainerPaths {
+			newTfPath := t.Container.Paths[newPath]
+			_, err := t.walk(newTfPath, false)
+			if err != nil {
+				return fmt.Errorf("error walking terraform path %s: %s", newTfPath.Path, err.Error())
+			}
+		}
+	}
+
+	return nil
+}
+
+func (t *Traverser) ParsePath(tfPath *TfPath) error {
+	err := t.parseFiles(tfPath)
+	if err != nil {
+		return fmt.Errorf("error parsing files in %s: %s", tfPath.Path, err.Error())
+	}
+
+	childrenNamesSorted := tfPath.ChildrenNamesSorted()
+	for _, childrenName := range childrenNamesSorted {
+		childTfPath := tfPath.Children[childrenName]
+		if childTfPath == nil {
+			continue
+		}
+
+		err := t.parseFiles(childTfPath)
+		if err != nil {
+			return fmt.Errorf("error parsing files in child %s: %s", tfPath.Path, err.Error())
+		}
+	}
+
+	return nil
+}
+
+func (t *Traverser) LinkPath(tfPath *TfPath) error {
+	err := t.link(tfPath, tfPath)
+	if err != nil {
+		return fmt.Errorf("error linking modules in terraform path %s: %s", tfPath.Path, err.Error())
+	}
+
+	for _, childTfPath := range tfPath.Children {
+		err := t.link(tfPath, childTfPath)
+		if err != nil {
+			return fmt.Errorf("error linking modules in terraform path %s: %s", childTfPath.Path, err.Error())
+		}
+	}
+
+	return nil
+}
+
+func (t *Traverser) link(rootTfParent *TfPath, childTfPath *TfPath) error {
+	for moduleName, module := range childTfPath.Modules {
+		source := module.FieldSource
+		version := module.FieldVersion
+
+		if !strings.HasPrefix(source, ".") {
+			containerPathKey := fmt.Sprintf("%s@%s", source, version)
+			containerTfPath, exists := t.Container.Paths[containerPathKey]
+			if !exists {
+				slog.Info(fmt.Sprintf("🚫 Skipped linking child terraform path 📁%s (📦%s) module %s due to source 📦%s not found in the container", childTfPath.Path, childTfPath.TraverseName, moduleName, containerPathKey))
+
+				continue
+			}
+
+			module.TfPath = containerTfPath
+			slog.Debug(fmt.Sprintf("🟡 Linked module %s in path 📁%s (📦%s) to container path 📁%s (📦%s)", moduleName, childTfPath.RelPath, childTfPath.TraverseName, containerTfPath.Path, containerTfPath.TraverseName))
+
+			continue
+		}
+
+		cleanPath := filepath.Clean(filepath.Join(childTfPath.Path, source))
+		relPath, err := filepath.Rel(rootTfParent.Path, cleanPath)
+		if err != nil || relPath == "." {
+			slog.Info(fmt.Sprintf("🚫 Skipped linking child terraform path 📁%s (📦%s) to module %s due to problem with relative path: %s", childTfPath.Path, childTfPath.TraverseName, moduleName, err.Error()))
+
+			continue
+		}
+
+		if relPath == "" {
+			continue
+		}
+
+		foundLink := false
+		if strings.HasPrefix(relPath, "../") {
+			// search in the container
+			for _, containerTfPath := range t.Container.Paths {
+				if containerTfPath.Path == cleanPath {
+					module.TfPath = containerTfPath
+
+					slog.Debug(fmt.Sprintf("🟡 Linked module %s in path 📁%s (📦%s) to container path 📁%s (📦%s)", moduleName, childTfPath.RelPath, childTfPath.TraverseName, containerTfPath.Path, containerTfPath.TraverseName))
+
+					foundLink = true
+					break
+				}
+			}
+		}
+
+		if foundLink {
+			continue
+		}
+
+		moduleTfPath, exists := rootTfParent.Children[relPath]
+		if !exists {
+			slog.Info(fmt.Sprintf("🚫 Skipped linking child terraform path 📁%s (📦%s) module %s due to relative path %s not found in its parent", childTfPath.Path, childTfPath.TraverseName, moduleName, relPath))
+
+			continue
+		}
+
+		if module.TfPath == nil {
+			module.TfPath = moduleTfPath
+		}
+
+		slog.Debug(fmt.Sprintf("🟡 Linked module %s in path 📁%s (📦%s) to parent path 📁%s (📦%s)", moduleName, childTfPath.RelPath, childTfPath.TraverseName, moduleTfPath.Path, moduleTfPath.TraverseName))
+	}
+
+	return nil
+}
+
+func (t *Traverser) walk(tfPath *TfPath, extractModules bool) ([]string, error) {
+	rootPath := tfPath.Path
+
+	newContainerPaths := []string{}
+
+	errwd := filepath.WalkDir(rootPath, func(currentPath string, dirEntry fs.DirEntry, err error) error {
+		if err != nil {
+			return fmt.Errorf("error walking directory %s: %s", currentPath, err.Error())
+		}
+
+		// ignore files
+		if !dirEntry.IsDir() {
+			return nil
+		}
+
+		currentRelPath, _ := filepath.Rel(rootPath, currentPath)
+		currentParentDir := filepath.Dir(currentPath)
+		currentParentDirName := filepath.Base(currentParentDir)
+		currentDirName := filepath.Base(currentPath)
+
+		// if directory is called 'modules' or 'tests' or 'examples' then do nothing
+		if t.RegexpIgnoreDir.MatchString(currentDirName) || (extractModules && t.RegexpModuleDir.MatchString(currentDirName)) {
+			slog.Debug(fmt.Sprintf("🚫 Skipped path: 📁%s [📁%s]", currentPath, currentRelPath))
+
+			return nil
+		}
+
+		// if subdirectory of 'modules' directory then add it to container and skip further directories
+		if extractModules && t.RegexpModuleDir.MatchString(currentParentDirName) && currentRelPath != "." {
+			traverseNameSplit := strings.Split(tfPath.TraverseName, "@")
+			newTraverseName := traverseNameSplit[0] + "//" + currentRelPath
+			if len(traverseNameSplit) == 2 {
+				newTraverseName += "@" + traverseNameSplit[1]
+			}
+
+			newTfPath := NewTfPath(currentPath, newTraverseName)
+			newTfPath.RelPath = "."
+			t.Container.AddPath(newTfPath.TraverseName, newTfPath)
+			newContainerPaths = append(newContainerPaths, newTfPath.TraverseName)
+
+			slog.Debug(fmt.Sprintf("🚫 Skipped walking paths in: 📁%s [📁%s]", currentPath, currentRelPath))
+
+			return fs.SkipDir
+		}
+
+		if currentRelPath == "." {
+			return nil
+		}
+
+		_, childExists := tfPath.Children[currentRelPath]
+		if childExists {
+			slog.Debug(fmt.Sprintf("🚫 Child terraform path already exist: 📁%s in 📁%s (📦%s)", currentRelPath, rootPath, tfPath.TraverseName))
+
+			return nil
+		}
+
+		newTfPath := NewTfPath(currentPath, tfPath.TraverseName)
+		newTfPath.RelPath = currentRelPath
+
+		tfPath.Children[currentRelPath] = newTfPath
+		slog.Debug(fmt.Sprintf("🟣 Child terraform path added: 📁%s to 📁%s (📦%s)", currentRelPath, rootPath, tfPath.TraverseName))
+
+		return nil
+	})
+
+	if errwd != nil {
+		return []string{}, fmt.Errorf("error walking directories in terraform path %s (📦%s): %s", rootPath, tfPath.TraverseName, errwd.Error())
+	}
+
+	return newContainerPaths, nil
+}
+
+func (t *Traverser) parseFiles(tfPath *TfPath) error {
+	files, err := os.ReadDir(tfPath.Path)
+	if err != nil {
+		return fmt.Errorf("error reading directory %s: %s", tfPath.Path, err.Error())
+	}
+
+	for _, file := range files {
+		if file.IsDir() || !strings.HasSuffix(file.Name(), tfExtension) {
+			continue
+		}
+
+		fileFullPath := filepath.Join(tfPath.Path, file.Name())
+		err := t.parseFile(tfPath, file.Name())
+		if err != nil {
+			slog.Error(fmt.Sprintf("❌ Error parsing file 📄%s: %s", fileFullPath, err.Error()))
+
+			// skip an invalid tf file
+			continue
+		}
+	}
+
+	return nil
+}
+
+func (t *Traverser) parseFile(tfPath *TfPath, fileName string) error {
+	filePath := filepath.Join(tfPath.Path, fileName)
+
+	hclFile, diags := t.Parser.ParseHCLFile(filePath)
+	if diags.HasErrors() {
+		return fmt.Errorf("error parsing hcl file: %s", diags.Error())
+	}
+
+	content, _, _ := hclFile.Body.PartialContent(&hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{
+			{Type: "resource", LabelNames: []string{"kind", "name"}},
+			{Type: "module", LabelNames: []string{"name"}},
+		},
+	})
+
+	for _, block := range content.Blocks {
+		if len(block.Labels) == 2 && block.Type == "resource" {
+			resource, _ := t.parseHCLBlockResource(block)
+			if resource == nil {
+				continue
+			}
+
+			resource.FileName = fileName
+			resource.FilePath = filePath
+			tfPath.Resources[resource.Name] = resource
+
+			slog.Info(fmt.Sprintf("🟠 Found resource %s in file 📄%s (📦%s)", resource.Name, filePath, tfPath.TraverseName))
+			if resource.FieldForEach != "" {
+				slog.Info(fmt.Sprintf("🟠 Found resource %s for_each is 🔄%s", resource.Name, resource.FieldForEach))
+			}
+		}
+
+		if len(block.Labels) == 1 && block.Type == "module" {
+			module, _ := t.parseHCLBlockModule(block)
+			if module == nil {
+				continue
+			}
+
+			if module.FieldSource == "../" {
+				slog.Debug(fmt.Sprintf("💭 Ignoring module %s with source '../' in 📄%s", module.Name, filePath))
+
+				continue
+			}
+
+			module.FileName = fileName
+			module.FilePath = filePath
+
+			tfPath.Modules[module.Name] = module
+
+			slog.Info(fmt.Sprintf("🔵 Found module %s in file 📄%s (📦%s)", module.Name, filePath, tfPath.TraverseName))
+			if module.FieldForEach != "" {
+				slog.Info(fmt.Sprintf("🔵 Found module %s for_each is 🔄%s", module.Name, module.FieldForEach))
+			}
+		}
+	}
+
+	return nil
+}
+
+func (t *Traverser) parseHCLBlockResource(block *hcl.Block) (*TfResource, error) {
+	resourceType := block.Labels[0]
+
+	if resourceType != t.ResourceType {
+		return nil, nil
+	}
+
+	resourceName := block.Labels[1]
+
+	resourceInstance := &TfResource{
+		Type:  resourceType,
+		Name: resourceName,
+	}
+
+	nameField, _ := t.getNameFromHCLBlock(block)
+	resourceInstance.FieldName = nameField
+
+	forEachField, _ := t.getForEachFromHCLBlock(block)
+	resourceInstance.FieldForEach = forEachField
+
+	return resourceInstance, nil
+}
+
+func (t *Traverser) parseHCLBlockModule(block *hcl.Block) (*TfModule, error) {
+	moduleName := block.Labels[0]
+
+	moduleInstance := &TfModule{
+		Name: moduleName,
+	}
+
+	sourceField, versionField, _ := t.getSourceFromHCLBlock(block)
+	moduleInstance.FieldSource = sourceField
+	moduleInstance.FieldVersion = versionField
+
+	forEachField, _ := t.getForEachFromHCLBlock(block)
+	moduleInstance.FieldForEach = forEachField
+
+	return moduleInstance, nil
+}
+
+func (t *Traverser) getNameFromHCLBlock(block *hcl.Block) (string, error) {
+	name := block.Labels[0]
+
+	bodyContent, _, diags := block.Body.PartialContent(tfResourceDefinition)
+	if diags.HasErrors() {
+		return "", fmt.Errorf("error getting partial content: %s.%s: %s", block.Type, name, diags.Error())
+	}
+
+	attrToGet := ""
+	for attrName, _ := range bodyContent.Attributes {
+		if attrName == "name" {
+			attrToGet = attrName
+			break
+		}
+		if attrToGet == "" && attrName == "name_prefix" {
+			attrToGet = attrName
+			break
+		}
+		if attrToGet == "" && attrName == "id" {
+			attrToGet = attrName
+			break
+		}
+	}
+
+	if attrToGet == "" {
+		return "no-name-attr", nil
+	}
+
+	nameField := ""
+
+	for attrName, attr := range bodyContent.Attributes {
+		if attrName != attrToGet {
+			continue
+		}
+
+		var srcRange hcl.Range
+		var found bool
+
+		expr, ok := attr.Expr.(*hclsyntax.TemplateExpr)
+		if ok {
+			srcRange = expr.SrcRange
+			found = true
+		}
+
+		if !found {
+			scopeTraversalExpr, ok := attr.Expr.(*hclsyntax.ScopeTraversalExpr)
+			if ok {
+				srcRange = scopeTraversalExpr.SrcRange
+				found = true
+			}
+		}
+
+		if found {
+			source, err := os.ReadFile(srcRange.Filename)
+			if err == nil {
+				raw := string(source[srcRange.Start.Byte:srcRange.End.Byte])
+				nameField = raw
+			}
+		}
+	}
+
+	return nameField, nil
+}
+
+func (t *Traverser) getForEachFromHCLBlock(block *hcl.Block) (string, error) {
+	name := block.Labels[0]
+
+	bodyContent, _, diags := block.Body.PartialContent(tfResourceDefinition)
+	if diags.HasErrors() {
+		return "", fmt.Errorf("error getting partial content: %s.%s: %s", block.Type, name, diags.Error())
+	}
+
+	forEachField := ""
+
+	for attrName, attr := range bodyContent.Attributes {
+		if attrName != "for_each" {
+			continue
+		}
+
+		var srcRange hcl.Range
+		var found bool
+
+		expr, ok := attr.Expr.(*hclsyntax.TupleConsExpr)
+		if ok {
+			srcRange = expr.SrcRange
+			found = true
+		}
+
+		if !found {
+			scopeTraversalExpr, ok := attr.Expr.(*hclsyntax.ScopeTraversalExpr)
+			if ok {
+				srcRange = scopeTraversalExpr.SrcRange
+				found = true
+			}
+		}
+
+		if found {
+			source, err := os.ReadFile(srcRange.Filename)
+			if err == nil {
+				raw := string(source[srcRange.Start.Byte:srcRange.End.Byte])
+				forEachField = raw
+			}
+		}
+	}
+
+	return forEachField, nil
+}
+
+func (t *Traverser) getSourceFromHCLBlock(block *hcl.Block) (string, string, error) {
+	name := block.Labels[0]
+
+	bodyContent, _, diags := block.Body.PartialContent(tfModuleDefinition)
+	if diags.HasErrors() {
+		return "", "", fmt.Errorf("error getting partial content: %s.%s: %s", block.Type, name, diags.Error())
+	}
+
+	fieldValues := make(map[string]string, 2)
+
+	for attrName, attr := range bodyContent.Attributes {
+		if attrName != "source" && attrName != "version" {
+			continue
+		}
+
+		value, _ := attr.Expr.Value(nil)
+		if value.Type() == cty.String {
+			fieldValues[attrName] = value.AsString()
+		}
+	}
+
+	return fieldValues["source"], fieldValues["version"], nil
+}

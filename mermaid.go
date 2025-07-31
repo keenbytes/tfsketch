@@ -1,5 +1,6 @@
 package main
 
+/*
 import (
 	"fmt"
 	"html"
@@ -133,7 +134,7 @@ func genModules(mermaidDiagram *strings.Builder, resourceEdges *strings.Builder,
 		"generating mermaid for modules",
 		slog.String("path", tfPath.path),
 	)
-	
+
 	for _, moduleSource := range sortedModules {
 		module := tfPath.modules[moduleSource]
 		if module == nil {
@@ -265,3 +266,4 @@ func elTfInternalModule(id, label string) string {
 func elTfExternalModule(id, label string) string {
 	return el(id, label, "tf-ext-mod")
 }
+*/
