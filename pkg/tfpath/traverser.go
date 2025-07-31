@@ -159,13 +159,13 @@ func (t *Traverser) link(rootTfParent *TfPath, childTfPath *TfPath) error {
 
 		cleanPath := filepath.Clean(filepath.Join(childTfPath.Path, source))
 		relPath, err := filepath.Rel(rootTfParent.Path, cleanPath)
-		if err != nil || relPath == "." {
+		if err != nil {
 			slog.Info(fmt.Sprintf("🚫 Skipped linking child terraform path 📁%s (📦%s) to module %s due to problem with relative path: %s", childTfPath.Path, childTfPath.TraverseName, moduleName, err.Error()))
 
 			continue
 		}
 
-		if relPath == "" {
+		if relPath == "" || relPath == "." {
 			continue
 		}
 
