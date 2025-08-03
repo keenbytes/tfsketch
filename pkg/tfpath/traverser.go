@@ -285,6 +285,7 @@ func (t *Traverser) link(rootTfParent *TfPath, childTfPath *TfPath) error {
 			rootTfPathVersion := rootTfPathModule[1]
 
 			moduleToSearch := fmt.Sprintf("%s//%s@%s", rootTfPathSource, relPath, rootTfPathVersion)
+			log.Printf("%s", moduleToSearch)
 			containerTfPath, exists := t.Container.Paths[moduleToSearch]
 			if exists {
 				module.TfPath = containerTfPath
