@@ -3,7 +3,6 @@ package tfpath
 import (
 	"fmt"
 	"io/fs"
-	"log"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -158,12 +157,11 @@ func (t *Traverser) walk(tfPath *TfPath, extractModules bool) ([]string, error) 
 		currentParentDirName := filepath.Base(currentParentDir)
 		currentDirName := filepath.Base(currentPath)
 
-		// if directory is called 'modules' or 'tests' or 'examples' then do nothing
-		log.Printf("%v %v", currentDirName, t.RegexpIgnoreDir.MatchString(currentDirName))
-		if t.RegexpIgnoreDir.MatchString(currentDirName) || (extractModules && t.RegexpModuleDir.MatchString(currentDirName)) {
+		// if directory is called 'tests' or 'examples' then do not walk the dir
+		if t.RegexpIgnoreDir.MatchString(currentDirName) {
 			slog.Debug(fmt.Sprintf("🚫 Skipped path: 📁%s [📁%s]", currentPath, currentRelPath))
 
-			return nil
+			return fs.SkipDir
 		}
 
 		// if subdirectory of 'modules' directory then add it to container and skip further directories
