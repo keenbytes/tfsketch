@@ -137,74 +137,6 @@ func (t *Traverser) LinkPath(tfPath *TfPath) error {
 	return nil
 }
 
-func (t *Traverser) link(rootTfParent *TfPath, childTfPath *TfPath) error {
-	for moduleName, module := range childTfPath.Modules {
-		source := module.FieldSource
-		version := module.FieldVersion
-
-		if !strings.HasPrefix(source, ".") {
-			containerPathKey := fmt.Sprintf("%s@%s", source, version)
-			containerTfPath, exists := t.Container.Paths[containerPathKey]
-			if !exists {
-				slog.Info(fmt.Sprintf("🚫 Skipped linking child terraform path 📁%s (📦%s) module %s due to source 📦%s not found in the container", childTfPath.Path, childTfPath.TraverseName, moduleName, containerPathKey))
-
-				continue
-			}
-
-			module.TfPath = containerTfPath
-			slog.Debug(fmt.Sprintf("🟡 Linked module %s in path 📁%s (📦%s) to container path 📁%s (📦%s)", moduleName, childTfPath.RelPath, childTfPath.TraverseName, containerTfPath.Path, containerTfPath.TraverseName))
-
-			continue
-		}
-
-		cleanPath := filepath.Clean(filepath.Join(childTfPath.Path, source))
-		relPath, err := filepath.Rel(rootTfParent.Path, cleanPath)
-		if err != nil {
-			slog.Info(fmt.Sprintf("🚫 Skipped linking child terraform path 📁%s (📦%s) to module %s due to problem with relative path: %s", childTfPath.Path, childTfPath.TraverseName, moduleName, err.Error()))
-
-			continue
-		}
-
-		if relPath == "" || relPath == "." {
-			continue
-		}
-
-		foundLink := false
-		if strings.HasPrefix(relPath, "../") {
-			// search in the container
-			for _, containerTfPath := range t.Container.Paths {
-				if containerTfPath.Path == cleanPath {
-					module.TfPath = containerTfPath
-
-					slog.Debug(fmt.Sprintf("🟡 Linked module %s in path 📁%s (📦%s) to container path 📁%s (📦%s)", moduleName, childTfPath.RelPath, childTfPath.TraverseName, containerTfPath.Path, containerTfPath.TraverseName))
-
-					foundLink = true
-					break
-				}
-			}
-		}
-
-		if foundLink {
-			continue
-		}
-
-		moduleTfPath, exists := rootTfParent.Children[relPath]
-		if !exists {
-			slog.Info(fmt.Sprintf("🚫 Skipped linking child terraform path 📁%s (📦%s) module %s due to relative path %s not found in its parent", childTfPath.Path, childTfPath.TraverseName, moduleName, relPath))
-
-			continue
-		}
-
-		if module.TfPath == nil {
-			module.TfPath = moduleTfPath
-		}
-
-		slog.Debug(fmt.Sprintf("🟡 Linked module %s in path 📁%s (📦%s) to parent path 📁%s (📦%s)", moduleName, childTfPath.RelPath, childTfPath.TraverseName, moduleTfPath.Path, moduleTfPath.TraverseName))
-	}
-
-	return nil
-}
-
 func (t *Traverser) walk(tfPath *TfPath, extractModules bool) ([]string, error) {
 	rootPath := tfPath.Path
 
@@ -275,6 +207,74 @@ func (t *Traverser) walk(tfPath *TfPath, extractModules bool) ([]string, error) 
 	}
 
 	return newContainerPaths, nil
+}
+
+func (t *Traverser) link(rootTfParent *TfPath, childTfPath *TfPath) error {
+	for moduleName, module := range childTfPath.Modules {
+		source := module.FieldSource
+		version := module.FieldVersion
+
+		if !strings.HasPrefix(source, ".") {
+			containerPathKey := fmt.Sprintf("%s@%s", source, version)
+			containerTfPath, exists := t.Container.Paths[containerPathKey]
+			if !exists {
+				slog.Info(fmt.Sprintf("🚫 Skipped linking child terraform path 📁%s (📦%s) module %s due to source 📦%s not found in the container", childTfPath.Path, childTfPath.TraverseName, moduleName, containerPathKey))
+
+				continue
+			}
+
+			module.TfPath = containerTfPath
+			slog.Debug(fmt.Sprintf("🟡 Linked module %s in path 📁%s (📦%s) to container path 📁%s (📦%s)", moduleName, childTfPath.RelPath, childTfPath.TraverseName, containerTfPath.Path, containerTfPath.TraverseName))
+
+			continue
+		}
+
+		cleanPath := filepath.Clean(filepath.Join(childTfPath.Path, source))
+		relPath, err := filepath.Rel(rootTfParent.Path, cleanPath)
+		if err != nil {
+			slog.Info(fmt.Sprintf("🚫 Skipped linking child terraform path 📁%s (📦%s) to module %s due to problem with relative path: %s", childTfPath.Path, childTfPath.TraverseName, moduleName, err.Error()))
+
+			continue
+		}
+
+		if relPath == "" || relPath == "." {
+			continue
+		}
+
+		foundLink := false
+		if strings.HasPrefix(relPath, "../") {
+			// search in the container
+			for _, containerTfPath := range t.Container.Paths {
+				if containerTfPath.Path == cleanPath {
+					module.TfPath = containerTfPath
+
+					slog.Debug(fmt.Sprintf("🟡 Linked module %s in path 📁%s (📦%s) to container path 📁%s (📦%s)", moduleName, childTfPath.RelPath, childTfPath.TraverseName, containerTfPath.Path, containerTfPath.TraverseName))
+
+					foundLink = true
+					break
+				}
+			}
+		}
+
+		if foundLink {
+			continue
+		}
+
+		moduleTfPath, exists := rootTfParent.Children[relPath]
+		if !exists {
+			slog.Info(fmt.Sprintf("🚫 Skipped linking child terraform path 📁%s (📦%s) module %s due to relative path %s not found in its parent", childTfPath.Path, childTfPath.TraverseName, moduleName, relPath))
+
+			continue
+		}
+
+		if module.TfPath == nil {
+			module.TfPath = moduleTfPath
+		}
+
+		slog.Debug(fmt.Sprintf("🟡 Linked module %s in path 📁%s (📦%s) to parent path 📁%s (📦%s)", moduleName, childTfPath.RelPath, childTfPath.TraverseName, moduleTfPath.Path, moduleTfPath.TraverseName))
+	}
+
+	return nil
 }
 
 func (t *Traverser) parseFiles(tfPath *TfPath) error {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/keenbytes/broccli/v3"
 	"github.com/keenbytes/tfsketch/internal/overrides"
@@ -64,7 +65,9 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 		tfPath := tfpath.NewTfPath(externalModule.Local, externalModule.Remote)
 		container.AddPath(tfPath.TraverseName, tfPath)
 
-		err := traverser.WalkPath(tfPath, true)
+		isSubModule := isExternalModuleASubModule(externalModule.Remote)
+
+		err := traverser.WalkPath(tfPath, !isSubModule)
 		if err != nil {
 			slog.Error(fmt.Sprintf("❌ Error walking dirs in overrides local path 📁%s: %s", externalModule.Local, err.Error()))
 
@@ -141,4 +144,8 @@ func setLogger(debug string) {
 	}
 
 	slog.SetLogLoggerLevel(logLevel)
+}
+
+func isExternalModuleASubModule(module string) bool {
+	return strings.Contains(module, "//modules/")
 }
