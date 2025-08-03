@@ -3,6 +3,7 @@ package tfpath
 import (
 	"fmt"
 	"io/fs"
+	"log"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -158,6 +159,7 @@ func (t *Traverser) walk(tfPath *TfPath, extractModules bool) ([]string, error) 
 		currentDirName := filepath.Base(currentPath)
 
 		// if directory is called 'modules' or 'tests' or 'examples' then do nothing
+		log.Printf("%v %v", currentDirName, t.RegexpIgnoreDir.MatchString(currentDirName))
 		if t.RegexpIgnoreDir.MatchString(currentDirName) || (extractModules && t.RegexpModuleDir.MatchString(currentDirName)) {
 			slog.Debug(fmt.Sprintf("🚫 Skipped path: 📁%s [📁%s]", currentPath, currentRelPath))
 
