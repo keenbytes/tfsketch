@@ -262,9 +262,6 @@ func (t *Traverser) link(rootTfParent *TfPath, childTfPath *TfPath) error {
 		}
 
 		moduleTfPath, exists := rootTfParent.Children[relPath]
-		// if !exists {
-		// 	slog.Info(fmt.Sprintf("🚫 Skipped linking child terraform path 📁%s (📦%s) module %s due to relative path %s not found in its parent", childTfPath.Path, childTfPath.TraverseName, moduleName, relPath))
-		// } else {
 		if exists {
 			if module.TfPath == nil {
 				module.TfPath = moduleTfPath
@@ -276,9 +273,6 @@ func (t *Traverser) link(rootTfParent *TfPath, childTfPath *TfPath) error {
 		}
 
 		// if inside a module and module path does not contain '//modules' already then search in the container
-		if rootTfParent.TraverseName != "." && !strings.Contains(rootTfParent.TraverseName, "//modules/") {
-		log.Printf("%v %v", source, relPath)
-		}
 		if rootTfParent.TraverseName != "." && !strings.Contains(rootTfParent.TraverseName, "//modules/") && strings.HasPrefix(source, "./modules/") {
 			rootTfPathModule := strings.Split(rootTfParent.TraverseName, "@")
 			rootTfPathSource := rootTfPathModule[0]
