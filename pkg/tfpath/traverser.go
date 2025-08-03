@@ -263,14 +263,14 @@ func (t *Traverser) link(rootTfParent *TfPath, childTfPath *TfPath) error {
 		moduleTfPath, exists := rootTfParent.Children[relPath]
 		if !exists {
 			slog.Info(fmt.Sprintf("🚫 Skipped linking child terraform path 📁%s (📦%s) module %s due to relative path %s not found in its parent", childTfPath.Path, childTfPath.TraverseName, moduleName, relPath))
-		}
+		} else {
+			if module.TfPath == nil {
+				module.TfPath = moduleTfPath
 
-		if module.TfPath == nil {
-			module.TfPath = moduleTfPath
+				slog.Debug(fmt.Sprintf("🟡 Linked module %s in path 📁%s (📦%s) to parent path 📁%s (📦%s)", moduleName, childTfPath.RelPath, childTfPath.TraverseName, moduleTfPath.Path, moduleTfPath.TraverseName))
 
-			slog.Debug(fmt.Sprintf("🟡 Linked module %s in path 📁%s (📦%s) to parent path 📁%s (📦%s)", moduleName, childTfPath.RelPath, childTfPath.TraverseName, moduleTfPath.Path, moduleTfPath.TraverseName))
-
-			foundLink = true
+				foundLink = true
+			}
 		}
 
 		if foundLink {
