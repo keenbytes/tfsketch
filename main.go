@@ -9,6 +9,7 @@ import (
 
 	"github.com/keenbytes/broccli/v3"
 	"github.com/keenbytes/tfsketch/internal/overrides"
+	"github.com/keenbytes/tfsketch/pkg/chart"
 	"github.com/keenbytes/tfsketch/pkg/tfpath"
 )
 
@@ -24,6 +25,7 @@ const (
 	exitCodeErrLinkingContainerPaths = 22
 	exitCodeErrParsingTerraformPath = 31
 	exitCodeErrLinkingTerraformPath = 32
+	exitCodeErrGeneratingChart = 41
 )
 
 
@@ -44,34 +46,38 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	slog.Info("🚀 tfsketch starting...")
 
 	setLogger(cli.Flag("debug"))
-	terraformPath, resourceType, _, overridesPath := getGenArgsAndFlags(cli)
+	terraformPath, resourceType, outputFile, overridesPath := getGenArgsAndFlags(cli)
 
 	container := tfpath.NewContainer()
 
 	traverser := tfpath.NewTraverser(container, resourceType)
 
+	var err error
+
 	// overrides
-	overrides := &overrides.Overrides{}
-	err := overrides.ReadFromFile(overridesPath)
-	if err != nil {
-		slog.Error(fmt.Sprintf("❌ Error reading overrides from file: %s", err.Error()))
-		return exitCodeErrReadingOverridesFromFile
-	}
-
-	externalModulesNum := len(overrides.ExternalModules)
-	slog.Info(fmt.Sprintf("🔸 External modules number in overrides file: %d", externalModulesNum))
-
-	for _, externalModule := range overrides.ExternalModules {
-		tfPath := tfpath.NewTfPath(externalModule.Local, externalModule.Remote)
-		container.AddPath(tfPath.TraverseName, tfPath)
-
-		isSubModule := isExternalModuleASubModule(externalModule.Remote)
-
-		err := traverser.WalkPath(tfPath, !isSubModule)
+	if overridesPath != "" {
+		overrides := &overrides.Overrides{}
+		err = overrides.ReadFromFile(overridesPath)
 		if err != nil {
-			slog.Error(fmt.Sprintf("❌ Error walking dirs in overrides local path 📁%s: %s", externalModule.Local, err.Error()))
+			slog.Error(fmt.Sprintf("❌ Error reading overrides from file: %s", err.Error()))
+			return exitCodeErrReadingOverridesFromFile
+		}
 
-			return exitCodeErrTraversingOverrides
+		externalModulesNum := len(overrides.ExternalModules)
+		slog.Info(fmt.Sprintf("🔸 External modules number in overrides file: %d", externalModulesNum))
+
+		for _, externalModule := range overrides.ExternalModules {
+			tfPath := tfpath.NewTfPath(externalModule.Local, externalModule.Remote)
+			container.AddPath(tfPath.TraverseName, tfPath)
+
+			isSubModule := isExternalModuleASubModule(externalModule.Remote)
+
+			err := traverser.WalkPath(tfPath, !isSubModule)
+			if err != nil {
+				slog.Error(fmt.Sprintf("❌ Error walking dirs in overrides local path 📁%s: %s", externalModule.Local, err.Error()))
+
+				return exitCodeErrTraversingOverrides
+			}
 		}
 	}
 
@@ -118,6 +124,15 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 		slog.Error(fmt.Sprintf("❌ Error linking local modules in terraform path 📁%s (%s) : %s", rootTfPath.Path, rootTfPathName, err.Error()))
 
 		return exitCodeErrLinkingTerraformPath
+	}
+
+	chart := chart.MermaidFlowChart{}
+
+	err = chart.Generate(rootTfPath, resourceType, outputFile)
+	if err != nil {
+		slog.Error(fmt.Sprintf("❌ Error generating chart from terraform path 📁%s (%s) : %s", rootTfPath.Path, rootTfPathName, err.Error()))
+
+		return exitCodeErrGeneratingChart
 	}
 
 	return 0

@@ -1,5 +1,0 @@
-externalModules:
-  - remote: external-tf-module-2@0.1.0
-    local: "/Users/nicholas/Repositories/github.com/KeenBytes/tf-module-2"
-  - remote: external-tf-module-4@0.1.0
-    local: "/Users/nicholas/Repositories/github.com/KeenBytes/tf-module-2/modules/module-4"

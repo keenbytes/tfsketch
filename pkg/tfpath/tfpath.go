@@ -49,3 +49,23 @@ func (t *TfPath) ChildrenNamesSorted() []string {
 
 	return namesSorted
 }
+
+func (t *TfPath) ResourceNamesSorted() []string {
+	namesSorted := make([]string, len(t.Children))
+	for resourceKey, _ := range t.Resources {
+		namesSorted = append(namesSorted, resourceKey)
+	}
+	sort.Strings(namesSorted)
+
+	return namesSorted
+}
+
+func (t *TfPath) ModuleNamesSorted() []string {
+	namesSorted := make([]string, len(t.Children))
+	for moduleKey, _ := range t.Modules {
+		namesSorted = append(namesSorted, moduleKey)
+	}
+	sort.Strings(namesSorted)
+
+	return namesSorted
+}

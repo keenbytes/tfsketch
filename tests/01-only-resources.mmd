@@ -1,0 +1,38 @@
+---
+config:
+  theme: redux
+  flowchart:
+    diagramPadding: 5
+    padding: 5
+    nodeSpacing: 10
+    wrappingWidth: 700
+---
+flowchart LR
+  classDef tf-path fill:#c87de8
+  classDef tf-resource stroke:#e7b6fc,color:#c87de8,text-align:left
+  classDef tf-int-mod fill:#e7b6fc,text-align:left
+  classDef tf-ext-mod fill:#7da8e8,text-align:left
+  classDef tf-name fill:#eb91c7
+  p_root["."]:::tf-path
+  p_root ----> r_root__root11["type.root-1-1"]:::tf-resource
+  r_root__root11 ---> n_root__root11_["#34;name-root-1-1#34;"]:::tf-name
+  p_root ----> r_root__root12["type.root-1-2"]:::tf-resource
+  r_root__root12 ---> n_root__root12_["#34;name-root-1-2#34;"]:::tf-name
+  p_root ----> r_root__root13["type.root-1-3"]:::tf-resource
+  r_root__root13 ---> n_root__root13_["#34;name-root-1-3#34;"]:::tf-name
+  p_root ----> r_root__root21["type.root-2-1"]:::tf-resource
+  r_root__root21 ---> n_root__root21_["#34;name-root-2-1#34;"]:::tf-name
+  p_root ----> r_root__root22["type.root-2-2"]:::tf-resource
+  r_root__root22 ---> n_root__root22_["#34;name-root-2-2#34;"]:::tf-name
+  p_root ----> r_root__root23["type.root-2-3"]:::tf-resource
+  r_root__root23 ---> n_root__root23_["#34;name-root-2-3#34;"]:::tf-name
+  p_sub2["sub2"]:::tf-path
+  p_sub2 ----> r_sub2__sub211["type.sub2-1-1"]:::tf-resource
+  r_sub2__sub211 ---> n_sub2__sub211_["#34;name-sub2-1-1#34;"]:::tf-name
+  p_sub2 ----> r_sub2__sub221["type.sub2-2-1"]:::tf-resource
+  r_sub2__sub221 ---> n_sub2__sub221_["#34;name-sub2-2-1#34;"]:::tf-name
+  p_subdir1["subdir1"]:::tf-path
+  p_subdir1 ----> r_subdir1__typenamesub111["type.type-name-sub1-1-1"]:::tf-resource
+  r_subdir1__typenamesub111 ---> n_subdir1__typenamesub111_["#34;name-sub1-1-1#34;"]:::tf-name
+  p_subdir1 ----> r_subdir1__typenamesub112["type.type-name-sub1-1-2"]:::tf-resource
+  r_subdir1__typenamesub112 ---> n_subdir1__typenamesub112_["#34;name-sub1-1-2#34;"]:::tf-name
