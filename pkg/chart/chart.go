@@ -36,7 +36,9 @@ const maxWriteModulesDepth = 5
 
 var nonAlphanumericRegex = regexp.MustCompile(`[^a-zA-Z0-9 ]+`)
 
-type MermaidFlowChart struct{}
+type MermaidFlowChart struct{
+  OnlyRoot bool
+}
 
 func (m MermaidFlowChart) Generate(tfPath *tfpath.TfPath, resourceType string, outputFile string) error {
   // output chart and list of resource edges
@@ -79,6 +81,10 @@ func (m MermaidFlowChart) writePath(tfPath *tfpath.TfPath, chart, edges *strings
   m.writePathModules(tfPath, elID, "", "", chart, edges, 1)
 
   // sub-paths
+  if m.OnlyRoot {
+    return
+  }
+
   sortedPaths := tfPath.ChildrenNamesSorted()
   for _, childKey := range sortedPaths {
     childTfPath := tfPath.Children[childKey]

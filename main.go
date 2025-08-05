@@ -15,19 +15,18 @@ import (
 
 const (
 	linkModuleIterationsNum = 10
-	terraformPathKey = "."
+	terraformPathKey        = "."
 )
 
 const (
 	exitCodeErrReadingOverridesFromFile = 10
-	exitCodeErrTraversingOverrides = 11
-	exitCodeErrParsingContainerPaths = 21
-	exitCodeErrLinkingContainerPaths = 22
-	exitCodeErrParsingTerraformPath = 31
-	exitCodeErrLinkingTerraformPath = 32
-	exitCodeErrGeneratingChart = 41
+	exitCodeErrTraversingOverrides      = 11
+	exitCodeErrParsingContainerPaths    = 21
+	exitCodeErrLinkingContainerPaths    = 22
+	exitCodeErrParsingTerraformPath     = 31
+	exitCodeErrLinkingTerraformPath     = 32
+	exitCodeErrGeneratingChart          = 41
 )
-
 
 func main() {
 	cli := broccli.NewBroccli("tfsketch", "Generate diagram from Terraform files", "Mikolaj Gasior <m@gasior.dev>")
@@ -38,6 +37,7 @@ func main() {
 	cmd.Arg("output", "FILE", "Path to an output file", broccli.TypePathFile, broccli.IsRequired)
 	cmd.Flag("overrides", "o", "FILE", "File with local paths to external modules", broccli.TypePathFile, broccli.IsRegularFile)
 	cmd.Flag("debug", "d", "", "Debug mode", broccli.TypeBool, 0)
+	cmd.Flag("only-root", "", "", "Draw only root directory", broccli.TypeBool, 0)
 
 	os.Exit(cli.Run(context.Background()))
 }
@@ -46,7 +46,7 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	slog.Info("🚀 tfsketch starting...")
 
 	setLogger(cli.Flag("debug"))
-	terraformPath, resourceType, outputFile, overridesPath := getGenArgsAndFlags(cli)
+	terraformPath, resourceType, outputFile, overridesPath, onlyRoot := getGenArgsAndFlags(cli)
 
 	container := tfpath.NewContainer()
 
@@ -126,7 +126,9 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 		return exitCodeErrLinkingTerraformPath
 	}
 
-	chart := chart.MermaidFlowChart{}
+	chart := chart.MermaidFlowChart{
+		OnlyRoot: onlyRoot,
+	}
 
 	err = chart.Generate(rootTfPath, resourceType, outputFile)
 	if err != nil {
@@ -138,18 +140,25 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	return 0
 }
 
-func getGenArgsAndFlags(cli *broccli.Broccli) (string, string, string, string) {
+func getGenArgsAndFlags(cli *broccli.Broccli) (string, string, string, string, bool) {
 	terraformPath := cli.Arg("path")
 	resourceType := cli.Arg("type")
 	outputFile := cli.Arg("output")
 	overrides := cli.Flag("overrides")
-	
+	onlyRoot := cli.Flag("only-root")
+
 	slog.Info(fmt.Sprintf("✨ Terraform path to scan:          %s", terraformPath))
 	slog.Info(fmt.Sprintf("✨ Resource type to find:           %s", resourceType))
 	slog.Info(fmt.Sprintf("✨ Output diagram destination:      %s", outputFile))
 	slog.Info(fmt.Sprintf("✨ External modules overrides file: %s", overrides))
+	slog.Info(fmt.Sprintf("✨ Draw only root path:             %s", onlyRoot))
 
-	return terraformPath, resourceType, outputFile, overrides
+	onlyRootBool := false
+	if onlyRoot == "true" {
+		onlyRootBool = true
+	}
+
+	return terraformPath, resourceType, outputFile, overrides, onlyRootBool
 }
 
 func setLogger(debug string) {
