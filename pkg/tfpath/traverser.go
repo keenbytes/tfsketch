@@ -73,7 +73,7 @@ type Traverser struct {
 func NewTraverser(container *Container, resourceType string) *Traverser{
 	traverser := &Traverser{
 		Parser: hclparse.NewParser(),
-		RegexpIgnoreDir: regexp.MustCompile(`^(example[s]*|test[s]*)$`),
+		RegexpIgnoreDir: regexp.MustCompile(`^(example[s]*|test[s]*|\..*)$`),
 		RegexpModuleDir: regexp.MustCompile(`^modules$`),
 		Container: container,
 		ResourceType: resourceType,
