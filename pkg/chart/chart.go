@@ -37,19 +37,31 @@ const maxWriteModulesDepth = 5
 var nonAlphanumericRegex = regexp.MustCompile(`[^a-zA-Z0-9 ]+`)
 
 type MermaidFlowChart struct{
-  OnlyRoot bool
-  IncludeFilenames bool
+  onlyRoot bool
+  includeFilenames bool
+  chart *strings.Builder
+  edges *strings.Builder
+}
+
+func NewMermaidFlowChart(onlyRoot, includeFilenames bool) *MermaidFlowChart {
+  flowchart := &MermaidFlowChart{
+    chart: &strings.Builder{},
+    edges: &strings.Builder{},
+    onlyRoot: onlyRoot,
+    includeFilenames: includeFilenames,
+  }
+
+  return flowchart
 }
 
 func (m MermaidFlowChart) Generate(tfPath *tfpath.TfPath, resourceType string, outputFile string) error {
-  // output chart and list of resource edges
-  chart := &strings.Builder{}
-  edges := &strings.Builder{}
+  m.chart.Reset()
+  m.edges.Reset()
 
-  chart.WriteString(config)
-  m.writePath(tfPath, chart, edges)
+  m.chart.WriteString(config)
+  m.writePath(tfPath)
 
-	err := os.WriteFile(filepath.Clean(outputFile), []byte(chart.String()), 0600)
+	err := os.WriteFile(filepath.Clean(outputFile), []byte(m.chart.String()), 0600)
 	if err != nil {
 		slog.Error(
 			"error writing output file",
@@ -59,7 +71,7 @@ func (m MermaidFlowChart) Generate(tfPath *tfpath.TfPath, resourceType string, o
 	}
 
 	edgesFile := outputFile + ".edges.txt"
-	err = os.WriteFile(filepath.Clean(edgesFile), []byte(edges.String()), 0600)
+	err = os.WriteFile(filepath.Clean(edgesFile), []byte(m.edges.String()), 0600)
 	if err != nil {
 		slog.Error(
 			"error writing file with edges",
@@ -71,18 +83,18 @@ func (m MermaidFlowChart) Generate(tfPath *tfpath.TfPath, resourceType string, o
   return nil
 }
 
-func (m MermaidFlowChart) writePath(tfPath *tfpath.TfPath, chart, edges *strings.Builder) {
+func (m MermaidFlowChart) writePath(tfPath *tfpath.TfPath) {
   elPath, elID, _ := m.pathElement(tfPath)
-  _, _ = chart.WriteString(fmt.Sprintf("  p%s%s\n", partSeparator, elPath))
+  _, _ = m.chart.WriteString(fmt.Sprintf("  p%s%s\n", partSeparator, elPath))
 
   // path resources
-  m.writePathResources(tfPath, elID, false, false, chart, edges)
+  m.writePathResources(tfPath, elID, false, false)
 
   // path modules
-  m.writePathModules(tfPath, elID, "", "", false, chart, edges, 1)
+  m.writePathModules(tfPath, elID, "", "", false, 1)
 
   // sub-paths
-  if m.OnlyRoot {
+  if m.onlyRoot {
     return
   }
 
@@ -105,18 +117,18 @@ func (m MermaidFlowChart) writePath(tfPath *tfpath.TfPath, chart, edges *strings
     }
 
     elChildPath, elChildID, _ := m.pathElement(childTfPath)
-    _, _ = chart.WriteString(fmt.Sprintf("  p%s%s\n", partSeparator, elChildPath))
+    _, _ = m.chart.WriteString(fmt.Sprintf("  p%s%s\n", partSeparator, elChildPath))
 
     // resources
-    m.writePathResources(childTfPath, elChildID, false, false, chart, edges)
+    m.writePathResources(childTfPath, elChildID, false, false)
 
     // modules
-    m.writePathModules(childTfPath, elChildID, "", "", false, chart, edges, 1)
+    m.writePathModules(childTfPath, elChildID, "", "", false, 1)
   }
 
 }
 
-func (m MermaidFlowChart) writePathResources(tfPath *tfpath.TfPath, elID string, isPathModule, forceMultiple bool, chart, edges *strings.Builder) {
+func (m MermaidFlowChart) writePathResources(tfPath *tfpath.TfPath, elID string, isPathModule, forceMultiple bool) {
   sortedResources := tfPath.ResourceNamesSorted()
   for _, resourceKey := range sortedResources {
     resource := tfPath.Resources[resourceKey]
@@ -126,19 +138,19 @@ func (m MermaidFlowChart) writePathResources(tfPath *tfpath.TfPath, elID string,
 
     elResource, elResourceID, _, isMultiple := m.resourceElement(resource, elID)
     if isPathModule {
-      _, _ = chart.WriteString(fmt.Sprintf("  m%s%s ---> r%s%s\n", partSeparator, elID, partSeparator, elResource))
+      _, _ = m.chart.WriteString(fmt.Sprintf("  m%s%s ---> r%s%s\n", partSeparator, elID, partSeparator, elResource))
     } else {
-      _, _ = chart.WriteString(fmt.Sprintf("  p%s%s ----> r%s%s\n", partSeparator, elID, partSeparator, elResource))
+      _, _ = m.chart.WriteString(fmt.Sprintf("  p%s%s ----> r%s%s\n", partSeparator, elID, partSeparator, elResource))
     }
 
     elName, elNameID, _ := m.nameElement(resource, elResourceID, isMultiple || forceMultiple)
-    _, _ = chart.WriteString(fmt.Sprintf("  r%s%s ---> n%s%s\n", partSeparator, elResourceID, partSeparator, elName))
+    _, _ = m.chart.WriteString(fmt.Sprintf("  r%s%s ---> n%s%s\n", partSeparator, elResourceID, partSeparator, elName))
 
-    _, _ = edges.WriteString(fmt.Sprintf("n%s%s\n", partSeparator, elNameID))
+    _, _ = m.edges.WriteString(fmt.Sprintf("n%s%s\n", partSeparator, elNameID))
   }
 }
 
-func (m MermaidFlowChart) writePathModules(tfPath *tfpath.TfPath, elPathID, elParentModuleID, elParentModuleLabel string, forceMultiple bool, chart, edges *strings.Builder, depth int) {
+func (m MermaidFlowChart) writePathModules(tfPath *tfpath.TfPath, elPathID, elParentModuleID, elParentModuleLabel string, forceMultiple bool, depth int) {
   if depth > maxWriteModulesDepth {
     return
   }
@@ -152,14 +164,14 @@ func (m MermaidFlowChart) writePathModules(tfPath *tfpath.TfPath, elPathID, elPa
 
     elModule, elModuleID, elModuleLabel, isMultiple := m.moduleElement(module, elPathID, elParentModuleID, elParentModuleLabel)
     if len(module.TfPath.Resources) > 0 {
-      _, _ = chart.WriteString(fmt.Sprintf("  p%s%s --> m%s%s\n", partSeparator, elPathID, partSeparator, elModule))
+      _, _ = m.chart.WriteString(fmt.Sprintf("  p%s%s --> m%s%s\n", partSeparator, elPathID, partSeparator, elModule))
 
       // resources
-      m.writePathResources(module.TfPath, elModuleID, true, isMultiple || forceMultiple, chart, edges)
+      m.writePathResources(module.TfPath, elModuleID, true, isMultiple || forceMultiple)
     }
 
     // modules
-    m.writePathModules(module.TfPath, elPathID, elModuleID, elModuleLabel, isMultiple || forceMultiple, chart, edges, depth+1)
+    m.writePathModules(module.TfPath, elPathID, elModuleID, elModuleLabel, isMultiple || forceMultiple, depth+1)
   }
 }
 
@@ -188,7 +200,7 @@ func (m MermaidFlowChart) resourceElement(resource *tfpath.TfResource, elPathID 
     isMultiple = true
   }
 
-  if m.IncludeFilenames {
+  if m.includeFilenames {
     label += "<br><i>(" + m.escapeLabel(resource.FilePath) + ")</i>"
   }
 
@@ -232,7 +244,7 @@ func (m MermaidFlowChart) moduleElement(module *tfpath.TfModule, elPathID, elPar
   }
 
 
-  if m.IncludeFilenames {
+  if m.includeFilenames {
     label += "<br><i>(" + m.escapeLabel(module.FilePath) + ")</i>"
   }
 

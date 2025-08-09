@@ -127,12 +127,9 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 		return exitCodeErrLinkingTerraformPath
 	}
 
-	chart := chart.MermaidFlowChart{
-		OnlyRoot: onlyRoot,
-		IncludeFilenames: includeFilenames,
-	}
+	flowchart := chart.NewMermaidFlowChart(onlyRoot, includeFilenames)
 
-	err = chart.Generate(rootTfPath, resourceType, outputFile)
+	err = flowchart.Generate(rootTfPath, resourceType, outputFile)
 	if err != nil {
 		slog.Error(fmt.Sprintf("❌ Error generating chart from terraform path 📁%s (%s) : %s", rootTfPath.Path, rootTfPathName, err.Error()))
 
