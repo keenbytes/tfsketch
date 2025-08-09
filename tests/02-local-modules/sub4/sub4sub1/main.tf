@@ -5,6 +5,8 @@ variable "suffix" {
 module "sub4sub1sub1" {
   source = "./sub4sub1sub1"
   suffix = var.suffix
+
+  for_each = var.value3
 }
 
 resource "type" "sub4sub1-1" {
