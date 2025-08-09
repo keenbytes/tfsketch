@@ -37,7 +37,8 @@ func main() {
 	cmd.Arg("output", "FILE", "Path to an output file", broccli.TypePathFile, broccli.IsRequired)
 	cmd.Flag("overrides", "o", "FILE", "File with local paths to external modules", broccli.TypePathFile, broccli.IsRegularFile)
 	cmd.Flag("debug", "d", "", "Debug mode", broccli.TypeBool, 0)
-	cmd.Flag("only-root", "", "", "Draw only root directory", broccli.TypeBool, 0)
+	cmd.Flag("only-root", "d1", "", "Draw only root directory", broccli.TypeBool, 0)
+	cmd.Flag("include-filenames", "d2", "", "Put source filenames on the diagram", broccli.TypeBool, 0)
 
 	os.Exit(cli.Run(context.Background()))
 }
@@ -46,7 +47,7 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	slog.Info("🚀 tfsketch starting...")
 
 	setLogger(cli.Flag("debug"))
-	terraformPath, resourceType, outputFile, overridesPath, onlyRoot := getGenArgsAndFlags(cli)
+	terraformPath, resourceType, outputFile, overridesPath, onlyRoot, includeFilenames := getGenArgsAndFlags(cli)
 
 	container := tfpath.NewContainer()
 
@@ -128,6 +129,7 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 
 	chart := chart.MermaidFlowChart{
 		OnlyRoot: onlyRoot,
+		IncludeFilenames: includeFilenames,
 	}
 
 	err = chart.Generate(rootTfPath, resourceType, outputFile)
@@ -140,25 +142,32 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	return 0
 }
 
-func getGenArgsAndFlags(cli *broccli.Broccli) (string, string, string, string, bool) {
+func getGenArgsAndFlags(cli *broccli.Broccli) (string, string, string, string, bool, bool) {
 	terraformPath := cli.Arg("path")
 	resourceType := cli.Arg("type")
 	outputFile := cli.Arg("output")
 	overrides := cli.Flag("overrides")
 	onlyRoot := cli.Flag("only-root")
+	includeFilenames := cli.Flag("include-filenames")
 
 	slog.Info(fmt.Sprintf("✨ Terraform path to scan:          %s", terraformPath))
 	slog.Info(fmt.Sprintf("✨ Resource type to find:           %s", resourceType))
 	slog.Info(fmt.Sprintf("✨ Output diagram destination:      %s", outputFile))
 	slog.Info(fmt.Sprintf("✨ External modules overrides file: %s", overrides))
 	slog.Info(fmt.Sprintf("✨ Draw only root path:             %s", onlyRoot))
+	slog.Info(fmt.Sprintf("✨ Include source filename:         %s", includeFilenames))
 
 	onlyRootBool := false
 	if onlyRoot == "true" {
 		onlyRootBool = true
 	}
 
-	return terraformPath, resourceType, outputFile, overrides, onlyRootBool
+	includeFilenamesBool := false
+	if includeFilenames == "true" {
+		includeFilenamesBool = true
+	}
+
+	return terraformPath, resourceType, outputFile, overrides, onlyRootBool, includeFilenamesBool
 }
 
 func setLogger(debug string) {

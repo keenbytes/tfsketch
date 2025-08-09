@@ -38,6 +38,7 @@ var nonAlphanumericRegex = regexp.MustCompile(`[^a-zA-Z0-9 ]+`)
 
 type MermaidFlowChart struct{
   OnlyRoot bool
+  IncludeFilenames bool
 }
 
 func (m MermaidFlowChart) Generate(tfPath *tfpath.TfPath, resourceType string, outputFile string) error {
@@ -181,6 +182,9 @@ func (m MermaidFlowChart) resourceElement(resource *tfpath.TfResource, elPathID 
   if resource.FieldForEach != "" {
     label += "<br>*for_each = " + m.escapeLabel(resource.FieldForEach) + "*"
   }
+  if m.IncludeFilenames {
+    label += "<br><i>(" + m.escapeLabel(resource.FilePath) + ")</i>"
+  }
 
   return fmt.Sprintf("%s[\"%s\"]:::tf-resource", id, label), id, label
 }
@@ -213,8 +217,11 @@ func (m MermaidFlowChart) moduleElement(module *tfpath.TfModule, elPathID, elPar
   if module.FieldForEach != "" {
     label += "<br>*for_each = " + m.escapeLabel(module.FieldForEach) + "*"
   }
+  if m.IncludeFilenames {
+    label += "<br><i>(" + m.escapeLabel(module.FilePath) + ")</i>"
+  }
 
-  return fmt.Sprintf("%s[\"%s\"]:::tf-module", id, label), id, label
+  return fmt.Sprintf("%s[\"%s\"]:::tf-int-mod", id, label), id, label
 }
 
 func (m MermaidFlowChart) elementID(text string) string {

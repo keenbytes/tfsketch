@@ -12,6 +12,8 @@ module "sub1-1" {
 }
 
 module "sub1-2" {
+  for_each = var.value
+
   source = "./sub1"
   suffix = "12"
 }
