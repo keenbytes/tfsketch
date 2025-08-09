@@ -1,6 +1,8 @@
 package tfpath
 
-import "sort"
+import (
+	"sort"
+)
 
 // TfPath represents a path that contains terraform code.
 type TfPath struct {
@@ -51,7 +53,7 @@ func (t *TfPath) ChildrenNamesSorted() []string {
 }
 
 func (t *TfPath) ResourceNamesSorted() []string {
-	namesSorted := make([]string, len(t.Children))
+	namesSorted := make([]string, len(t.Resources))
 	for resourceKey, _ := range t.Resources {
 		namesSorted = append(namesSorted, resourceKey)
 	}

@@ -1,0 +1,5 @@
+externalModules:
+- remote: external-module-1@0.0.1
+  local: tests/external-module-1
+- remote: external-module-2@0.0.1
+  local: tests/external-module-2

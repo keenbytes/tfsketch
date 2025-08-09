@@ -1,6 +1,7 @@
 package chart
 
 import (
+	"encoding/json"
 	"fmt"
 	"html"
 	"log/slog"
@@ -40,23 +41,27 @@ type MermaidFlowChart struct{
   onlyRoot bool
   includeFilenames bool
   chart *strings.Builder
-  edges *strings.Builder
+  summary *Summary
 }
 
 func NewMermaidFlowChart(onlyRoot, includeFilenames bool) *MermaidFlowChart {
   flowchart := &MermaidFlowChart{
     chart: &strings.Builder{},
-    edges: &strings.Builder{},
     onlyRoot: onlyRoot,
     includeFilenames: includeFilenames,
+    summary: NewSummary(),
   }
 
   return flowchart
 }
 
-func (m MermaidFlowChart) Generate(tfPath *tfpath.TfPath, resourceType string, outputFile string) error {
+func (m MermaidFlowChart) Reset() {
   m.chart.Reset()
-  m.edges.Reset()
+  m.summary.Reset()
+}
+
+func (m MermaidFlowChart) Generate(tfPath *tfpath.TfPath, resourceType string, outputFile string) error {
+  m.Reset()
 
   m.chart.WriteString(config)
   m.writePath(tfPath)
@@ -70,12 +75,23 @@ func (m MermaidFlowChart) Generate(tfPath *tfpath.TfPath, resourceType string, o
 		)
 	}
 
-	edgesFile := outputFile + ".edges.txt"
-	err = os.WriteFile(filepath.Clean(edgesFile), []byte(m.edges.String()), 0600)
+	summaryFile := outputFile + ".json"
+  summaryBytes, err := json.Marshal(m.summary)
+  if err != nil {
+    slog.Error(
+			"error marshaling summary",
+			slog.String("path", summaryFile),
+			slog.String("error", err.Error()),
+		)
+
+    return nil
+  }
+
+	err = os.WriteFile(filepath.Clean(summaryFile), summaryBytes, 0600)
 	if err != nil {
 		slog.Error(
-			"error writing file with edges",
-			slog.String("path", edgesFile),
+			"error writing summary file",
+			slog.String("path", summaryFile),
 			slog.String("error", err.Error()),
 		)
 	}
@@ -143,10 +159,12 @@ func (m MermaidFlowChart) writePathResources(tfPath *tfpath.TfPath, elID string,
       _, _ = m.chart.WriteString(fmt.Sprintf("  p%s%s ----> r%s%s\n", partSeparator, elID, partSeparator, elResource))
     }
 
-    elName, elNameID, _ := m.nameElement(resource, elResourceID, isMultiple || forceMultiple)
+    elName, elNameID, elNameLabel := m.nameElement(resource, elResourceID, isMultiple || forceMultiple)
     _, _ = m.chart.WriteString(fmt.Sprintf("  r%s%s ---> n%s%s\n", partSeparator, elResourceID, partSeparator, elName))
 
-    _, _ = m.edges.WriteString(fmt.Sprintf("n%s%s\n", partSeparator, elNameID))
+
+    m.summary.AddEdge(fmt.Sprintf("n%s%s", partSeparator, elNameID))
+    m.summary.AddName(elNameLabel)
   }
 }
 
@@ -155,10 +173,22 @@ func (m MermaidFlowChart) writePathModules(tfPath *tfpath.TfPath, elPathID, elPa
     return
   }
 
+  if tfPath == nil {
+    return
+  }
+
   sortedModules := tfPath.ModuleNamesSorted()
   for _, moduleKey := range sortedModules {
     module := tfPath.Modules[moduleKey]
     if module == nil {
+      continue
+    }
+
+    if !strings.HasPrefix(module.FieldSource, ".") {
+      m.summary.AddModule(module.FieldSource + "@" + module.FieldVersion)
+    }
+
+    if module.TfPath == nil {
       continue
     }
 
