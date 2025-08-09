@@ -131,8 +131,10 @@ func (m MermaidFlowChart) writePathResources(tfPath *tfpath.TfPath, elID string,
       _, _ = chart.WriteString(fmt.Sprintf("  p%s%s ----> r%s%s\n", partSeparator, elID, partSeparator, elResource))
     }
 
-    elName, _, _ := m.nameElement(resource, elResourceID, isMultiple || forceMultiple)
+    elName, elNameID, _ := m.nameElement(resource, elResourceID, isMultiple || forceMultiple)
     _, _ = chart.WriteString(fmt.Sprintf("  r%s%s ---> n%s%s\n", partSeparator, elResourceID, partSeparator, elName))
+
+    _, _ = edges.WriteString(fmt.Sprintf("n%s%s\n", partSeparator, elNameID))
   }
 }
 
@@ -194,7 +196,7 @@ func (m MermaidFlowChart) resourceElement(resource *tfpath.TfResource, elPathID 
 }
 
 func (m MermaidFlowChart) nameElement(resource *tfpath.TfResource, elResourceID string, isMultiple bool) (string, string, string) {
-  id := elResourceID + partSeparator
+  id := elResourceID + partSeparator + "n"
   label := m.escapeLabel(resource.FieldName)
 
   if isMultiple {
