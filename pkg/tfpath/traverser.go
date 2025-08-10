@@ -64,8 +64,8 @@ type Traverser struct {
 	RegexpModuleDir *regexp.Regexp
 	// Container contains all the modules that have been found so far
 	Container *Container
-	// ResourceType is type of the resource to search, eg. aws_iam_role
-	ResourceType string
+	// RegexpResourceType is type of the resource to search, eg. ^aws_iam_role$
+	RegexpResourceType *regexp.Regexp
 	// Parser is an HCL parser
 	Parser *hclparse.Parser
 }
@@ -73,11 +73,11 @@ type Traverser struct {
 // NewTraverser returns new Traverser object.
 func NewTraverser(container *Container, resourceType string) *Traverser {
 	traverser := &Traverser{
-		Parser:          hclparse.NewParser(),
-		RegexpIgnoreDir: regexp.MustCompile(`^(example[s]*|test[s]*|\..*)$`),
-		RegexpModuleDir: regexp.MustCompile(`^modules$`),
-		Container:       container,
-		ResourceType:    resourceType,
+		Parser:             hclparse.NewParser(),
+		RegexpIgnoreDir:    regexp.MustCompile(`^(example[s]*|test[s]*|\..*)$`),
+		RegexpModuleDir:    regexp.MustCompile(`^modules$`),
+		Container:          container,
+		RegexpResourceType: regexp.MustCompile(resourceType),
 	}
 
 	return traverser
@@ -519,7 +519,7 @@ func (t *Traverser) parseFile(tfPath *TfPath, fileName string) error {
 func (t *Traverser) parseHCLBlockResource(block *hcl.Block) *TfResource {
 	resourceType := block.Labels[0]
 
-	if resourceType != t.ResourceType {
+	if !t.RegexpResourceType.MatchString(resourceType) {
 		return nil
 	}
 

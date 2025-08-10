@@ -39,14 +39,15 @@ func main() {
 		broccli.TypePathFile,
 		broccli.IsDirectory|broccli.IsExistent|broccli.IsRequired,
 	)
-	cmd.Arg(
-		"type",
-		"RESOURCE_TYPE",
-		"Type of the resource to search for",
-		broccli.TypeString,
-		broccli.IsRequired,
-	)
 	cmd.Arg("output", "FILE", "Path to an output file", broccli.TypePathFile, broccli.IsRequired)
+	cmd.Flag(
+		"type-regexp",
+		"t",
+		"REGEXP",
+		"Regular expression to filter type of the resource",
+		broccli.TypeString,
+		0,
+	)
 	cmd.Flag(
 		"overrides",
 		"o",
@@ -65,6 +66,14 @@ func main() {
 		broccli.TypeBool,
 		0,
 	)
+	cmd.Flag(
+		"minify",
+		"d3",
+		"",
+		"Minify element names in the chart to save space",
+		broccli.TypeBool,
+		0,
+	)
 
 	os.Exit(cli.Run(context.Background()))
 }
@@ -74,7 +83,7 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	slog.Info("🚀 tfsketch starting...")
 
 	setLogger(cli.Flag("debug"))
-	terraformPath, resourceType, outputFile, overridesPath, onlyRoot, includeFilenames := getGenArgsAndFlags(
+	terraformPath, resourceType, outputFile, overridesPath, onlyRoot, includeFilenames, minify := getGenArgsAndFlags(
 		cli,
 	)
 
@@ -200,7 +209,7 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 		return exitCodeErrLinkingTerraformPath
 	}
 
-	flowchart := chart.NewMermaidFlowChart(onlyRoot, includeFilenames)
+	flowchart := chart.NewMermaidFlowChart(onlyRoot, includeFilenames, minify)
 
 	err = flowchart.Generate(rootTfPath, outputFile)
 	if err != nil {
@@ -220,22 +229,28 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 }
 
 //nolint:goconst
-func getGenArgsAndFlags(cli *broccli.Broccli) (string, string, string, string, bool, bool) {
+func getGenArgsAndFlags(cli *broccli.Broccli) (string, string, string, string, bool, bool, bool) {
 	terraformPath := cli.Arg("path")
-	resourceType := cli.Arg("type")
 	outputFile := cli.Arg("output")
+	resourceType := cli.Flag("type-regexp")
 	overrides := cli.Flag("overrides")
 	onlyRoot := cli.Flag("only-root")
 	includeFilenames := cli.Flag("include-filenames")
+	minify := cli.Flag("minify")
+
+	if resourceType == "" {
+		resourceType = "^.*$"
+	}
 
 	slog.Info("✨ Terraform path to scan:          " + terraformPath)
-	slog.Info("✨ Resource type to find:           " + resourceType)
+	slog.Info("✨ Resource type regexp:            " + resourceType)
 	slog.Info("✨ Output diagram destination:      " + outputFile)
 	slog.Info("✨ External modules overrides file: " + overrides)
 	slog.Info("✨ Draw only root path:             " + onlyRoot)
 	slog.Info("✨ Include source filename:         " + includeFilenames)
+	slog.Info("✨ Minify element names:            " + minify)
 
-	return terraformPath, resourceType, outputFile, overrides, onlyRoot == "true", includeFilenames == "true"
+	return terraformPath, resourceType, outputFile, overrides, onlyRoot == "true", includeFilenames == "true", minify == "true"
 }
 
 func setLogger(debug string) {
