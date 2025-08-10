@@ -19,6 +19,8 @@ Example diagram generated from tests/03-external-modules using tests/external-mo
 mmdc -i tmp/03-external-modules.mmd -o tmp/03-external-modules.mmd.svg
 ```
 
+Check `tests` directory for more examples.
+
 ## Building
 Run the following command to compile the binary:
 ```
