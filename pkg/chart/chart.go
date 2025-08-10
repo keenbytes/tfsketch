@@ -44,32 +44,44 @@ const newFilesMode = 0o600
 
 // MermaidFlowChart represents a flowchart.
 type MermaidFlowChart struct {
-	onlyRoot         bool
-	includeFilenames bool
-	chart            *strings.Builder
-	summary          *Summary
+	onlyRoot           bool
+	includeFilenames   bool
+	minify             bool
+	chart              *strings.Builder
+	summary            *Summary
+	idNum              int
+	minifiedElementIDs *map[string]string
 }
 
 // NewMermaidFlowChart returns a MermaidFlowChart instance.
-func NewMermaidFlowChart(onlyRoot, includeFilenames bool) *MermaidFlowChart {
+func NewMermaidFlowChart(onlyRoot, includeFilenames, minify bool) *MermaidFlowChart {
+	minifiedElementIDs := map[string]string{}
+
 	flowchart := &MermaidFlowChart{
 		chart:            &strings.Builder{},
 		onlyRoot:         onlyRoot,
 		includeFilenames: includeFilenames,
+		minify:           minify,
 		summary:          NewSummary(),
+		idNum:            0,
+		minifiedElementIDs: &minifiedElementIDs,
 	}
 
 	return flowchart
 }
 
 // Reset empties the chart.
-func (m MermaidFlowChart) Reset() {
+func (m *MermaidFlowChart) Reset() {
 	m.chart.Reset()
 	m.summary.Reset()
+	m.idNum = 0
+
+	minifiedElementIDs := map[string]string{}
+	m.minifiedElementIDs = &minifiedElementIDs
 }
 
 // Generate takes a path with Terraform code and generates a chart.
-func (m MermaidFlowChart) Generate(tfPath *tfpath.TfPath, outputFile string) error {
+func (m *MermaidFlowChart) Generate(tfPath *tfpath.TfPath, outputFile string) error {
 	m.Reset()
 
 	m.chart.WriteString(config)
@@ -109,7 +121,7 @@ func (m MermaidFlowChart) Generate(tfPath *tfpath.TfPath, outputFile string) err
 	return nil
 }
 
-func (m MermaidFlowChart) writePath(tfPath *tfpath.TfPath) {
+func (m *MermaidFlowChart) writePath(tfPath *tfpath.TfPath) {
 	elPath, elID := m.pathElement(tfPath)
 	_, _ = fmt.Fprintf(m.chart, "  p%s%s\n", partSeparator, elPath)
 
@@ -153,7 +165,7 @@ func (m MermaidFlowChart) writePath(tfPath *tfpath.TfPath) {
 	}
 }
 
-func (m MermaidFlowChart) writePathResources(
+func (m *MermaidFlowChart) writePathResources(
 	tfPath *tfpath.TfPath,
 	elID string,
 	isPathModule, forceMultiple bool,
@@ -198,7 +210,7 @@ func (m MermaidFlowChart) writePathResources(
 	}
 }
 
-func (m MermaidFlowChart) writePathModules(
+func (m *MermaidFlowChart) writePathModules(
 	tfPath *tfpath.TfPath,
 	elPathID, elParentModuleID, elParentModuleLabel string,
 	forceMultiple bool,
@@ -260,7 +272,7 @@ func (m MermaidFlowChart) writePathModules(
 }
 
 //nolint:varnamelen
-func (m MermaidFlowChart) pathElement(tfPath *tfpath.TfPath) (string, string) {
+func (m *MermaidFlowChart) pathElement(tfPath *tfpath.TfPath) (string, string) {
 	id := m.elementID(tfPath.RelPath)
 	label := tfPath.RelPath
 
@@ -276,7 +288,7 @@ func (m MermaidFlowChart) pathElement(tfPath *tfpath.TfPath) (string, string) {
 }
 
 //nolint:varnamelen
-func (m MermaidFlowChart) resourceElement(
+func (m *MermaidFlowChart) resourceElement(
 	resource *tfpath.TfResource,
 	elPathID string,
 ) (string, string, string, bool) {
@@ -298,7 +310,7 @@ func (m MermaidFlowChart) resourceElement(
 }
 
 //nolint:varnamelen
-func (m MermaidFlowChart) nameElement(
+func (m *MermaidFlowChart) nameElement(
 	resource *tfpath.TfResource,
 	elResourceID string,
 	isMultiple bool,
@@ -314,7 +326,7 @@ func (m MermaidFlowChart) nameElement(
 }
 
 //nolint:varnamelen
-func (m MermaidFlowChart) moduleElement(
+func (m *MermaidFlowChart) moduleElement(
 	module *tfpath.TfModule,
 	elPathID, elParentModuleID, elParentModuleLabel string,
 ) (string, string, string, bool) {
@@ -353,17 +365,32 @@ func (m MermaidFlowChart) moduleElement(
 	return fmt.Sprintf("%s[\"%s\"]:::tf-int-mod", id, label), id, label, isMultiple
 }
 
-func (m MermaidFlowChart) elementID(text string) string {
+func (m *MermaidFlowChart) elementID(text string) string {
 	text = strings.ReplaceAll(text, "/", "_")
 	text = m.removeNonAlphanumericChars(text)
 
-	return text
+	if !m.minify {
+		return text
+	}
+
+	minifiedIds := *m.minifiedElementIDs
+
+	minified, exists := minifiedIds[text]
+	if exists {
+		return minified
+	}
+
+	m.idNum++
+	minifiedId := fmt.Sprintf("m%d", m.idNum)
+	minifiedIds[text] = minifiedId
+
+	return minifiedId
 }
 
-func (m MermaidFlowChart) removeNonAlphanumericChars(str string) string {
+func (m *MermaidFlowChart) removeNonAlphanumericChars(str string) string {
 	return nonAlphanumericRegex.ReplaceAllString(str, "")
 }
 
-func (m MermaidFlowChart) escapeLabel(label string) string {
+func (m *MermaidFlowChart) escapeLabel(label string) string {
 	return strings.ReplaceAll(html.EscapeString(label), "&#", "#")
 }
