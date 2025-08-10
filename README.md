@@ -45,3 +45,7 @@ The command accepts three arguments:
 * `DIR` – Path to the Terraform code to scan.
 * `RESOURCE_TYPE` – The type of resource to search for (e.g. `aws_iam_role`).
 * `FILE` – Output Mermaid chart file name.
+
+## Motivation
+**tfsketch** began as a small helper tool for navigating repositories packed with complex Terraform code, particularly in cases where specific resources—such as AWS IAM roles—needed to be refactored. It was also designed for situations where multiple repositories were being standardised to follow a consistent structure. By using the tool, it becomes easier to visualise repository contents and analyse their structure.
+
