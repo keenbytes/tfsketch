@@ -19,6 +19,16 @@ Example diagram generated from tests/03-external-modules using tests/external-mo
 mmdc -i tmp/03-external-modules.mmd -o tmp/03-external-modules.mmd.svg
 ```
 
+**Alternatively with docker**:
+```
+docker run \
+  -w / \
+  -v $(pwd)/tests:/tests \
+  -v $(pwd)/tmp:/output \
+  keenbytes/tfsketch:v0.2.0 \
+  gen -o /tests/external-modules.yml /tests/03-external-modules type /output/03-external-modules.mmd
+```
+
 Check `tests` directory for more examples.
 
 ## Building
@@ -45,6 +55,13 @@ The command accepts three arguments:
 * `DIR` – Path to the Terraform code to scan.
 * `RESOURCE_TYPE` – The type of resource to search for (e.g. `aws_iam_role`).
 * `FILE` – Output Mermaid chart file name.
+
+### Using docker
+A Docker image is also available, though it requires binding local volumes.
+
+```
+docker run --platform linux/amd64 keenbytes/tfsketch:v0.2.0 gen -h
+```
 
 ## Motivation
 **tfsketch** began as a small helper tool for navigating repositories packed with complex Terraform code, particularly in cases where specific resources—such as AWS IAM roles—needed to be refactored. It was also designed for situations where multiple repositories were being standardised to follow a consistent structure. By using the tool, it becomes easier to visualise repository contents and analyse their structure.
