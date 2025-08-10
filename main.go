@@ -39,14 +39,15 @@ func main() {
 		broccli.TypePathFile,
 		broccli.IsDirectory|broccli.IsExistent|broccli.IsRequired,
 	)
-	cmd.Arg(
-		"type",
-		"RESOURCE_TYPE",
-		"Type of the resource to search for",
-		broccli.TypeString,
-		broccli.IsRequired,
-	)
 	cmd.Arg("output", "FILE", "Path to an output file", broccli.TypePathFile, broccli.IsRequired)
+	cmd.Flag(
+		"type-regexp",
+		"t",
+		"REGEXP",
+		"Regular expression to filter type of the resource",
+		broccli.TypeString,
+		0,
+	)
 	cmd.Flag(
 		"overrides",
 		"o",
@@ -222,14 +223,18 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 //nolint:goconst
 func getGenArgsAndFlags(cli *broccli.Broccli) (string, string, string, string, bool, bool) {
 	terraformPath := cli.Arg("path")
-	resourceType := cli.Arg("type")
 	outputFile := cli.Arg("output")
+	resourceType := cli.Flag("type-regexp")
 	overrides := cli.Flag("overrides")
 	onlyRoot := cli.Flag("only-root")
 	includeFilenames := cli.Flag("include-filenames")
 
+	if resourceType == "" {
+		resourceType = "^.*$"
+	}
+
 	slog.Info("✨ Terraform path to scan:          " + terraformPath)
-	slog.Info("✨ Resource type to find:           " + resourceType)
+	slog.Info("✨ Resource type regexp:            " + resourceType)
 	slog.Info("✨ Output diagram destination:      " + outputFile)
 	slog.Info("✨ External modules overrides file: " + overrides)
 	slog.Info("✨ Draw only root path:             " + onlyRoot)
