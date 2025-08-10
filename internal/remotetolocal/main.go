@@ -1,3 +1,4 @@
+// Package remotetolocal contains a struct used to define mapping of a remote source to local path.
 package remotetolocal
 
 // RemoteToLocal represents a mapping from a remote resource to a local one.

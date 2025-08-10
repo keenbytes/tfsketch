@@ -1,5 +1,6 @@
 package tfpath
 
+// TfModule represents a module reference.
 type TfModule struct {
 	Name         string
 	FileName     string

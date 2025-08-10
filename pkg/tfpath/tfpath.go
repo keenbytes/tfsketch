@@ -1,3 +1,4 @@
+// Package tfpath represents a path with Terraform code.
 package tfpath
 
 import (
@@ -31,42 +32,48 @@ type TfPath struct {
 // NewTfPath returns new TfPath instance containing name and a path.
 func NewTfPath(path string, name string) *TfPath {
 	tfPath := &TfPath{
-		Path: path,
-		TraverseName: name,
-		Children:        map[string]*TfPath{},
+		Path:          path,
+		TraverseName:  name,
+		Children:      map[string]*TfPath{},
 		IsChildModule: map[string]struct{}{},
-		Resources:      map[string]*TfResource{},
-		Modules:        map[string]*TfModule{},
+		Resources:     map[string]*TfResource{},
+		Modules:       map[string]*TfModule{},
 	}
 
 	return tfPath
 }
 
+// ChildrenNamesSorted returns a list of names of sub-paths sorted alphabetically.
 func (t *TfPath) ChildrenNamesSorted() []string {
-	namesSorted := make([]string, len(t.Children))
-	for childKey, _ := range t.Children {
+	namesSorted := make([]string, 0, len(t.Children))
+	for childKey := range t.Children {
 		namesSorted = append(namesSorted, childKey)
 	}
+
 	sort.Strings(namesSorted)
 
 	return namesSorted
 }
 
+// ResourceNamesSorted returns a list of names of resources sorted alphabetically.
 func (t *TfPath) ResourceNamesSorted() []string {
-	namesSorted := make([]string, len(t.Resources))
-	for resourceKey, _ := range t.Resources {
+	namesSorted := make([]string, 0, len(t.Resources))
+	for resourceKey := range t.Resources {
 		namesSorted = append(namesSorted, resourceKey)
 	}
+
 	sort.Strings(namesSorted)
 
 	return namesSorted
 }
 
+// ModuleNamesSorted returns a list of names of module references sorted alphabetically.
 func (t *TfPath) ModuleNamesSorted() []string {
-	namesSorted := make([]string, len(t.Children))
-	for moduleKey, _ := range t.Modules {
+	namesSorted := make([]string, 0, len(t.Children))
+	for moduleKey := range t.Modules {
 		namesSorted = append(namesSorted, moduleKey)
 	}
+
 	sort.Strings(namesSorted)
 
 	return namesSorted

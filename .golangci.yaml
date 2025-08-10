@@ -1,0 +1,45 @@
+version: "2"
+linters:
+  default: all
+  disable:
+    - cyclop
+    - tagliatelle
+    - testpackage
+    - exhaustruct
+    - err113
+  settings:
+    funlen:
+      lines: 70
+    depguard:
+      rules:
+        main:
+          allow:
+            - $gostd
+            - github.com/keenbytes/tfsketch
+            - github.com/keenbytes/broccli/v3
+            - gopkg.in/yaml.v2
+            - github.com/hashicorp/hcl/v2
+            - github.com/hashicorp/hcl/v2/hclparse
+            - github.com/hashicorp/hcl/v2/hclsyntax
+            - github.com/zclconf/go-cty/cty
+  exclusions:
+    generated: disable
+    rules:
+      - linters:
+          - err113
+          - exhaustruct
+          - funlen
+          - varnamelen
+          - dupl
+        path: _test.go
+      - linters:
+          - revive
+        path: internal/overrides/main.go
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports
+    - golines
+

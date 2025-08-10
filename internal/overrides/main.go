@@ -1,3 +1,4 @@
+// Package overrides contains struct for overrides file.
 package overrides
 
 import (
@@ -20,7 +21,6 @@ var (
 	ErrRead      = errors.New("error reading file")
 	ErrUnmarshal = errors.New("error unmarshaling yaml file")
 )
-
 
 // ReadFromFile takes a YAML file and gets its entries.
 func (o *Overrides) ReadFromFile(path string) error {

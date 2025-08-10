@@ -1,3 +1,4 @@
+// Package main is the main tool code.
 package main
 
 import (
@@ -14,11 +15,6 @@ import (
 )
 
 const (
-	linkModuleIterationsNum = 10
-	terraformPathKey        = "."
-)
-
-const (
 	exitCodeErrReadingOverridesFromFile = 10
 	exitCodeErrTraversingOverrides      = 11
 	exitCodeErrParsingContainerPaths    = 21
@@ -29,25 +25,58 @@ const (
 )
 
 func main() {
-	cli := broccli.NewBroccli("tfsketch", "Generate diagram from Terraform files", "Mikolaj Gasior <m@gasior.dev>")
+	cli := broccli.NewBroccli(
+		"tfsketch",
+		"Generate diagram from Terraform files",
+		"Mikolaj Gasior <m@gasior.dev>",
+	)
 
 	cmd := cli.Command("gen", "Generate diagram", genHandler)
-	cmd.Arg("path", "DIR", "Path to directory with terraform code", broccli.TypePathFile, broccli.IsDirectory|broccli.IsExistent|broccli.IsRequired)
-	cmd.Arg("type", "RESOURCE_TYPE", "Type of the resource to search for", broccli.TypeString, broccli.IsRequired)
+	cmd.Arg(
+		"path",
+		"DIR",
+		"Path to directory with terraform code",
+		broccli.TypePathFile,
+		broccli.IsDirectory|broccli.IsExistent|broccli.IsRequired,
+	)
+	cmd.Arg(
+		"type",
+		"RESOURCE_TYPE",
+		"Type of the resource to search for",
+		broccli.TypeString,
+		broccli.IsRequired,
+	)
 	cmd.Arg("output", "FILE", "Path to an output file", broccli.TypePathFile, broccli.IsRequired)
-	cmd.Flag("overrides", "o", "FILE", "File with local paths to external modules", broccli.TypePathFile, broccli.IsRegularFile)
+	cmd.Flag(
+		"overrides",
+		"o",
+		"FILE",
+		"File with local paths to external modules",
+		broccli.TypePathFile,
+		broccli.IsRegularFile,
+	)
 	cmd.Flag("debug", "d", "", "Debug mode", broccli.TypeBool, 0)
 	cmd.Flag("only-root", "d1", "", "Draw only root directory", broccli.TypeBool, 0)
-	cmd.Flag("include-filenames", "d2", "", "Put source filenames on the diagram", broccli.TypeBool, 0)
+	cmd.Flag(
+		"include-filenames",
+		"d2",
+		"",
+		"Put source filenames on the diagram",
+		broccli.TypeBool,
+		0,
+	)
 
 	os.Exit(cli.Run(context.Background()))
 }
 
+//nolint:funlen
 func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	slog.Info("🚀 tfsketch starting...")
 
 	setLogger(cli.Flag("debug"))
-	terraformPath, resourceType, outputFile, overridesPath, onlyRoot, includeFilenames := getGenArgsAndFlags(cli)
+	terraformPath, resourceType, outputFile, overridesPath, onlyRoot, includeFilenames := getGenArgsAndFlags(
+		cli,
+	)
 
 	container := tfpath.NewContainer()
 
@@ -58,14 +87,18 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	// overrides
 	if overridesPath != "" {
 		overrides := &overrides.Overrides{}
+
 		err = overrides.ReadFromFile(overridesPath)
 		if err != nil {
-			slog.Error(fmt.Sprintf("❌ Error reading overrides from file: %s", err.Error()))
+			slog.Error("❌ Error reading overrides from file: " + err.Error())
+
 			return exitCodeErrReadingOverridesFromFile
 		}
 
 		externalModulesNum := len(overrides.ExternalModules)
-		slog.Info(fmt.Sprintf("🔸 External modules number in overrides file: %d", externalModulesNum))
+		slog.Info(
+			fmt.Sprintf("🔸 External modules number in overrides file: %d", externalModulesNum),
+		)
 
 		for _, externalModule := range overrides.ExternalModules {
 			tfPath := tfpath.NewTfPath(externalModule.Local, externalModule.Remote)
@@ -75,7 +108,13 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 
 			err := traverser.WalkPath(tfPath, !isSubModule)
 			if err != nil {
-				slog.Error(fmt.Sprintf("❌ Error walking dirs in overrides local path 📁%s: %s", externalModule.Local, err.Error()))
+				slog.Error(
+					fmt.Sprintf(
+						"❌ Error walking dirs in overrides local path 📁%s: %s",
+						externalModule.Local,
+						err.Error(),
+					),
+				)
 
 				return exitCodeErrTraversingOverrides
 			}
@@ -86,7 +125,14 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	for pathName, tfPath := range container.Paths {
 		err := traverser.ParsePath(tfPath)
 		if err != nil {
-			slog.Error(fmt.Sprintf("❌ Error parsing container terraform path 📁%s (%s) : %s", tfPath.Path, pathName, err.Error()))
+			slog.Error(
+				fmt.Sprintf(
+					"❌ Error parsing container terraform path 📁%s (%s) : %s",
+					tfPath.Path,
+					pathName,
+					err.Error(),
+				),
+			)
 
 			return exitCodeErrParsingContainerPaths
 		}
@@ -95,7 +141,14 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	for pathName, tfPath := range container.Paths {
 		err = traverser.LinkPath(tfPath)
 		if err != nil {
-			slog.Error(fmt.Sprintf("❌ Error linking local modules in terraform path 📁%s (%s) : %s", tfPath.Path, pathName, err.Error()))
+			slog.Error(
+				fmt.Sprintf(
+					"❌ Error linking local modules in terraform path 📁%s (%s) : %s",
+					tfPath.Path,
+					pathName,
+					err.Error(),
+				),
+			)
 
 			return exitCodeErrLinkingContainerPaths
 		}
@@ -108,30 +161,57 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 
 	err = traverser.WalkPath(rootTfPath, false)
 	if err != nil {
-		slog.Error(fmt.Sprintf("❌ Error walking dirs in terraform path 📁%s: %s", rootTfPath.Path, err.Error()))
+		slog.Error(
+			fmt.Sprintf(
+				"❌ Error walking dirs in terraform path 📁%s: %s",
+				rootTfPath.Path,
+				err.Error(),
+			),
+		)
 
 		return exitCodeErrTraversingOverrides
 	}
 
 	err = traverser.ParsePath(rootTfPath)
 	if err != nil {
-		slog.Error(fmt.Sprintf("❌ Error parsing terraform path 📁%s (%s) : %s", rootTfPath.Path, rootTfPathName, err.Error()))
+		slog.Error(
+			fmt.Sprintf(
+				"❌ Error parsing terraform path 📁%s (%s) : %s",
+				rootTfPath.Path,
+				rootTfPathName,
+				err.Error(),
+			),
+		)
 
 		return exitCodeErrParsingTerraformPath
 	}
 
 	err = traverser.LinkPath(rootTfPath)
 	if err != nil {
-		slog.Error(fmt.Sprintf("❌ Error linking local modules in terraform path 📁%s (%s) : %s", rootTfPath.Path, rootTfPathName, err.Error()))
+		slog.Error(
+			fmt.Sprintf(
+				"❌ Error linking local modules in terraform path 📁%s (%s) : %s",
+				rootTfPath.Path,
+				rootTfPathName,
+				err.Error(),
+			),
+		)
 
 		return exitCodeErrLinkingTerraformPath
 	}
 
 	flowchart := chart.NewMermaidFlowChart(onlyRoot, includeFilenames)
 
-	err = flowchart.Generate(rootTfPath, resourceType, outputFile)
+	err = flowchart.Generate(rootTfPath, outputFile)
 	if err != nil {
-		slog.Error(fmt.Sprintf("❌ Error generating chart from terraform path 📁%s (%s) : %s", rootTfPath.Path, rootTfPathName, err.Error()))
+		slog.Error(
+			fmt.Sprintf(
+				"❌ Error generating chart from terraform path 📁%s (%s) : %s",
+				rootTfPath.Path,
+				rootTfPathName,
+				err.Error(),
+			),
+		)
 
 		return exitCodeErrGeneratingChart
 	}
@@ -139,6 +219,7 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	return 0
 }
 
+//nolint:goconst
 func getGenArgsAndFlags(cli *broccli.Broccli) (string, string, string, string, bool, bool) {
 	terraformPath := cli.Arg("path")
 	resourceType := cli.Arg("type")
@@ -147,24 +228,14 @@ func getGenArgsAndFlags(cli *broccli.Broccli) (string, string, string, string, b
 	onlyRoot := cli.Flag("only-root")
 	includeFilenames := cli.Flag("include-filenames")
 
-	slog.Info(fmt.Sprintf("✨ Terraform path to scan:          %s", terraformPath))
-	slog.Info(fmt.Sprintf("✨ Resource type to find:           %s", resourceType))
-	slog.Info(fmt.Sprintf("✨ Output diagram destination:      %s", outputFile))
-	slog.Info(fmt.Sprintf("✨ External modules overrides file: %s", overrides))
-	slog.Info(fmt.Sprintf("✨ Draw only root path:             %s", onlyRoot))
-	slog.Info(fmt.Sprintf("✨ Include source filename:         %s", includeFilenames))
+	slog.Info("✨ Terraform path to scan:          " + terraformPath)
+	slog.Info("✨ Resource type to find:           " + resourceType)
+	slog.Info("✨ Output diagram destination:      " + outputFile)
+	slog.Info("✨ External modules overrides file: " + overrides)
+	slog.Info("✨ Draw only root path:             " + onlyRoot)
+	slog.Info("✨ Include source filename:         " + includeFilenames)
 
-	onlyRootBool := false
-	if onlyRoot == "true" {
-		onlyRootBool = true
-	}
-
-	includeFilenamesBool := false
-	if includeFilenames == "true" {
-		includeFilenamesBool = true
-	}
-
-	return terraformPath, resourceType, outputFile, overrides, onlyRootBool, includeFilenamesBool
+	return terraformPath, resourceType, outputFile, overrides, onlyRoot == "true", includeFilenames == "true"
 }
 
 func setLogger(debug string) {
