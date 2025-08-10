@@ -51,17 +51,17 @@ func main() {
 		"overrides",
 		"o",
 		"FILE",
-		"File with local paths to external modules",
+		"YAML file mapping external modules to local paths",
 		broccli.TypePathFile,
 		broccli.IsRegularFile,
 	)
-	cmd.Flag("debug", "d", "", "Debug mode", broccli.TypeBool, 0)
+	cmd.Flag("debug", "d", "", "Enable debug mode", broccli.TypeBool, 0)
 	cmd.Flag("only-root", "d1", "", "Draw only root directory", broccli.TypeBool, 0)
 	cmd.Flag(
 		"include-filenames",
 		"d2",
 		"",
-		"Put source filenames on the diagram",
+		"Display source filenames on the diagram",
 		broccli.TypeBool,
 		0,
 	)
