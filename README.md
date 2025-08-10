@@ -16,7 +16,7 @@ Example diagram generated from tests/03-external-modules using tests/external-mo
 **Commands**:
 ```
 ./tfsketch gen -o tests/external-modules.yml -t '^type$' tests/03-external-modules tmp/03-external-modules.mmd
-mmdc -i tmp/03-external-modules.mmd -o tmp/03-external-modules.mmd.svg
+mmdc -i tmp/03-external-modules.mmd -o tmp/03-external-modules.mmd.svg --configFile=tests/config.json
 ```
 
 **Alternatively with docker**:
@@ -26,7 +26,7 @@ docker run \
   -v $(pwd)/tests:/tests \
   -v $(pwd)/tmp:/output \
   keenbytes/tfsketch:v0.3.0 \
-  gen -o /tests/external-modules.yml -t '^type$' /tests/03-external-modules /output/03-external-modules.mmd
+  gen -o /tests/external-modules.yml -t '^type$' /tests/03-external-modules /output/03-external-modules.mmd --configFile=tests/config.json
 ```
 
 Check `tests` directory for more examples.
