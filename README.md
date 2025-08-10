@@ -26,7 +26,7 @@ docker run \
   -v $(pwd)/tests:/tests \
   -v $(pwd)/tmp:/output \
   keenbytes/tfsketch:v0.3.0 \
-  gen -o /tests/external-modules.yml -t '^type$' /tests/03-external-modules /output/03-external-modules.mmd --configFile=tests/config.json
+  gen -o /tests/external-modules.yml -t '^type$' /tests/03-external-modules /output/03-external-modules.mmd
 ```
 
 Check `tests` directory for more examples.
