@@ -47,6 +47,7 @@ type MermaidFlowChart struct {
 	onlyRoot           bool
 	includeFilenames   bool
 	minify             bool
+	module             bool
 	chart              *strings.Builder
 	summary            *Summary
 	idNum              int
@@ -54,23 +55,24 @@ type MermaidFlowChart struct {
 }
 
 // NewMermaidFlowChart returns a MermaidFlowChart instance.
-func NewMermaidFlowChart(onlyRoot, includeFilenames, minify bool) *MermaidFlowChart {
+func NewMermaidFlowChart(onlyRoot, includeFilenames, minify, module bool) *MermaidFlowChart {
 	minifiedElementIDs := map[string]string{}
 
 	flowchart := &MermaidFlowChart{
-		chart:            &strings.Builder{},
-		onlyRoot:         onlyRoot,
-		includeFilenames: includeFilenames,
-		minify:           minify,
-		summary:          NewSummary(),
-		idNum:            0,
+		chart:              &strings.Builder{},
+		onlyRoot:           onlyRoot,
+		includeFilenames:   includeFilenames,
+		minify:             minify,
+		module:             module,
+		summary:            NewSummary(),
+		idNum:              0,
 		minifiedElementIDs: &minifiedElementIDs,
 	}
 
 	return flowchart
 }
 
-// Reset empties the chart.
+// Reset resets the chart to the start values so that the chart generation can be re-run.
 func (m *MermaidFlowChart) Reset() {
 	m.chart.Reset()
 	m.summary.Reset()
@@ -80,7 +82,7 @@ func (m *MermaidFlowChart) Reset() {
 	m.minifiedElementIDs = &minifiedElementIDs
 }
 
-// Generate takes a path with Terraform code and generates a chart.
+// Generate takes a path to Terraform code and generates chart file.
 func (m *MermaidFlowChart) Generate(tfPath *tfpath.TfPath, outputFile string) error {
 	m.Reset()
 
@@ -149,9 +151,19 @@ func (m *MermaidFlowChart) writePath(tfPath *tfpath.TfPath) {
 			continue
 		}
 
-		// only first-depth sub-directories
-		if strings.Contains(childTfPath.RelPath, "/") {
+		// ignore 'modules' sub-directory
+		if childTfPath.RelPath == "modules" {
 			continue
+		}
+
+		// only first-depth sub-directories, unless module is drawn
+		if strings.Contains(childTfPath.RelPath, "/") {
+			if !m.module {
+				continue
+			}
+			if !strings.HasPrefix(childTfPath.RelPath, "modules/") {
+				continue
+			}
 		}
 
 		elChildPath, elChildID := m.pathElement(childTfPath)
@@ -292,7 +304,7 @@ func (m *MermaidFlowChart) resourceElement(
 	resource *tfpath.TfResource,
 	elPathID string,
 ) (string, string, string, bool) {
-	id := elPathID + elementSeparator + m.elementID(resource.Name)
+	id := elPathID + elementSeparator + m.elementID(resource.Type + partSeparator + resource.Name)
 	label := fmt.Sprintf("%s.%s", resource.Type, resource.Name)
 
 	isMultiple := false
@@ -373,18 +385,18 @@ func (m *MermaidFlowChart) elementID(text string) string {
 		return text
 	}
 
-	minifiedIds := *m.minifiedElementIDs
+	minifiedIDs := *m.minifiedElementIDs
 
-	minified, exists := minifiedIds[text]
+	minified, exists := minifiedIDs[text]
 	if exists {
 		return minified
 	}
 
 	m.idNum++
-	minifiedId := fmt.Sprintf("m%d", m.idNum)
-	minifiedIds[text] = minifiedId
+	minifiedID := fmt.Sprintf("m%d", m.idNum)
+	minifiedIDs[text] = minifiedID
 
-	return minifiedId
+	return minifiedID
 }
 
 func (m *MermaidFlowChart) removeNonAlphanumericChars(str string) string {

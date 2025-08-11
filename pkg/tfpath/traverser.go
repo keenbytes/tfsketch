@@ -18,6 +18,8 @@ import (
 const (
 	tfExtension             = ".tf"
 	linkModulesMaxRecursion = 5
+	labelNoFieldName        = "no-attr!"
+	labelFieldNameEmpty     = "empty!"
 )
 
 //nolint:gochecknoglobals
@@ -56,7 +58,7 @@ var (
 	}
 )
 
-// Traverser represents a struct that scans a Terraform directory.
+// Traverser represents functionality for scanning a Terraform directory.
 type Traverser struct {
 	// RegexpIgnoreDir is a regular expression used to check if directory name should be ignored
 	RegexpIgnoreDir *regexp.Regexp
@@ -447,7 +449,7 @@ func (t *Traverser) parseFile(tfPath *TfPath, fileName string) error {
 
 			resource.FileName = fileName
 			resource.FilePath = filePath
-			tfPath.Resources[resource.Name] = resource
+			tfPath.Resources[resource.Type + "." + resource.Name] = resource
 
 			slog.Info(
 				fmt.Sprintf(
@@ -593,7 +595,7 @@ func (t *Traverser) getNameFromHCLBlock(block *hcl.Block) (string, error) {
 	}
 
 	if attrToGet == "" {
-		return "no-name-attr", nil
+		return labelNoFieldName, nil
 	}
 
 	nameField := ""
@@ -628,6 +630,10 @@ func (t *Traverser) getNameFromHCLBlock(block *hcl.Block) (string, error) {
 				nameField = raw
 			}
 		}
+	}
+
+	if nameField == "" {
+		nameField = labelFieldNameEmpty
 	}
 
 	return nameField, nil

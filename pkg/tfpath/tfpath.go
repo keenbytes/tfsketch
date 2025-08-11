@@ -1,4 +1,4 @@
-// Package tfpath represents a path with Terraform code.
+// Package tfpath contains code related to traversing and parsing files in a path with Terraform code.
 package tfpath
 
 import (

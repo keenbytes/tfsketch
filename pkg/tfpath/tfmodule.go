@@ -1,6 +1,6 @@
 package tfpath
 
-// TfModule represents a module reference.
+// TfModule represents a reference to a module ('module' resource in Terraform).
 type TfModule struct {
 	Name         string
 	FileName     string

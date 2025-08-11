@@ -1,4 +1,4 @@
-// Package main is the main tool code.
+// Package main contains CLI commands definition for tfsketch.
 package main
 
 import (
@@ -28,7 +28,7 @@ func main() {
 	cli := broccli.NewBroccli(
 		"tfsketch",
 		"Generate diagram from Terraform files",
-		"Mikolaj Gasior <m@gasior.dev>",
+		"Mikołaj Gąsior <m@gasior.dev>",
 	)
 
 	cmd := cli.Command("gen", "Generate diagram", genHandler)
@@ -57,10 +57,10 @@ func main() {
 		broccli.IsRegularFile,
 	)
 	cmd.Flag("debug", "d", "", "Enable debug mode", broccli.TypeBool, 0)
-	cmd.Flag("only-root", "d1", "", "Draw only root directory", broccli.TypeBool, 0)
+	cmd.Flag("only-root", "", "", "Draw only root directory", broccli.TypeBool, 0)
 	cmd.Flag(
 		"include-filenames",
-		"d2",
+		"f",
 		"",
 		"Display source filenames on the diagram",
 		broccli.TypeBool,
@@ -68,9 +68,17 @@ func main() {
 	)
 	cmd.Flag(
 		"minify",
-		"d3",
+		"s",
 		"",
 		"Minify element names in the chart to save space",
+		broccli.TypeBool,
+		0,
+	)
+	cmd.Flag(
+		"module",
+		"n",
+		"",
+		"Treat path as module and draw 'modules' sub-directory",
 		broccli.TypeBool,
 		0,
 	)
@@ -83,9 +91,8 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	slog.Info("🚀 tfsketch starting...")
 
 	setLogger(cli.Flag("debug"))
-	terraformPath, resourceType, outputFile, overridesPath, onlyRoot, includeFilenames, minify := getGenArgsAndFlags(
-		cli,
-	)
+	terraformPath, resourceType, outputFile, overridesPath, onlyRoot, includeFilenames, minify, 
+		module := getGenArgsAndFlags(cli)
 
 	container := tfpath.NewContainer()
 
@@ -209,7 +216,7 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 		return exitCodeErrLinkingTerraformPath
 	}
 
-	flowchart := chart.NewMermaidFlowChart(onlyRoot, includeFilenames, minify)
+	flowchart := chart.NewMermaidFlowChart(onlyRoot, includeFilenames, minify, module)
 
 	err = flowchart.Generate(rootTfPath, outputFile)
 	if err != nil {
@@ -229,7 +236,7 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 }
 
 //nolint:goconst
-func getGenArgsAndFlags(cli *broccli.Broccli) (string, string, string, string, bool, bool, bool) {
+func getGenArgsAndFlags(cli *broccli.Broccli) (string, string, string, string, bool, bool, bool, bool) {
 	terraformPath := cli.Arg("path")
 	outputFile := cli.Arg("output")
 	resourceType := cli.Flag("type-regexp")
@@ -237,6 +244,7 @@ func getGenArgsAndFlags(cli *broccli.Broccli) (string, string, string, string, b
 	onlyRoot := cli.Flag("only-root")
 	includeFilenames := cli.Flag("include-filenames")
 	minify := cli.Flag("minify")
+	module := cli.Flag("module")
 
 	if resourceType == "" {
 		resourceType = "^.*$"
@@ -249,8 +257,10 @@ func getGenArgsAndFlags(cli *broccli.Broccli) (string, string, string, string, b
 	slog.Info("✨ Draw only root path:             " + onlyRoot)
 	slog.Info("✨ Include source filename:         " + includeFilenames)
 	slog.Info("✨ Minify element names:            " + minify)
+	slog.Info("✨ Draw 'modules' sub-directory:    " + module)
 
-	return terraformPath, resourceType, outputFile, overrides, onlyRoot == "true", includeFilenames == "true", minify == "true"
+	return terraformPath, resourceType, outputFile, overrides, onlyRoot == "true", includeFilenames == "true",
+		minify == "true", module == "true"
 }
 
 func setLogger(debug string) {

@@ -14,42 +14,42 @@ flowchart LR
   classDef tf-ext-mod fill:#7da8e8,text-align:left
   classDef tf-name fill:#eb91c7
   p_root["."]:::tf-path
-  p_root ----> r_root__typename11["type.type-name-11"]:::tf-resource
-  r_root__typename11 ---> n_root__typename11_n["#34;name-11#34;"]:::tf-name
-  p_root ----> r_root__typename12["type.type-name-12<br>*for_each = var.value1*"]:::tf-resource
-  r_root__typename12 ---> n_root__typename12_n:::tf-name@{ shape: procs, label: "#34;name-12#34;"}
+  p_root ----> r_root__typetypename11["type.type-name-11"]:::tf-resource
+  r_root__typetypename11 ---> n_root__typetypename11_n["#34;name-11#34;"]:::tf-name
+  p_root ----> r_root__typetypename12["type.type-name-12<br>*for_each = var.value1*"]:::tf-resource
+  r_root__typetypename12 ---> n_root__typetypename12_n:::tf-name@{ shape: procs, label: "#34;name-12#34;"}
   p_root --> m_root__sub11["module.sub1-1<br>./sub1"]:::tf-int-mod
-  m_root__sub11 ---> r_root__sub11__sub1["type.sub1"]:::tf-resource
-  r_root__sub11__sub1 ---> n_root__sub11__sub1_n["#34;name-sub1-${var.suffix}#34;"]:::tf-name
+  m_root__sub11 ---> r_root__sub11__typesub1["type.sub1"]:::tf-resource
+  r_root__sub11__typesub1 ---> n_root__sub11__typesub1_n["#34;name-sub1-${var.suffix}#34;"]:::tf-name
   p_root --> m_root__sub12["module.sub1-2<br>./sub1<br>*for_each = var.value2*"]:::tf-int-mod
-  m_root__sub12 ---> r_root__sub12__sub1["type.sub1"]:::tf-resource
-  r_root__sub12__sub1 ---> n_root__sub12__sub1_n:::tf-name@{ shape: procs, label: "#34;name-sub1-${var.suffix}#34;"}
+  m_root__sub12 ---> r_root__sub12__typesub1["type.sub1"]:::tf-resource
+  r_root__sub12__typesub1 ---> n_root__sub12__typesub1_n:::tf-name@{ shape: procs, label: "#34;name-sub1-${var.suffix}#34;"}
   p_root --> m_root__root__sub4__sub4sub1["module.sub4<br>./sub4<br><b>/</b><br>module.sub4sub1<br>./sub4sub1"]:::tf-int-mod
-  m_root__root__sub4__sub4sub1 ---> r_root__root__sub4__sub4sub1__sub4sub11["type.sub4sub1-1"]:::tf-resource
-  r_root__root__sub4__sub4sub1__sub4sub11 ---> n_root__root__sub4__sub4sub1__sub4sub11_n["#34;name-sub4sub1-1-${var.suffix}#34;"]:::tf-name
-  m_root__root__sub4__sub4sub1 ---> r_root__root__sub4__sub4sub1__sub4sub12["type.sub4sub1-2"]:::tf-resource
-  r_root__root__sub4__sub4sub1__sub4sub12 ---> n_root__root__sub4__sub4sub1__sub4sub12_n["#34;name-sub4sub1-2-${var.suffix}#34;"]:::tf-name
+  m_root__root__sub4__sub4sub1 ---> r_root__root__sub4__sub4sub1__typesub4sub11["type.sub4sub1-1"]:::tf-resource
+  r_root__root__sub4__sub4sub1__typesub4sub11 ---> n_root__root__sub4__sub4sub1__typesub4sub11_n["#34;name-sub4sub1-1-${var.suffix}#34;"]:::tf-name
+  m_root__root__sub4__sub4sub1 ---> r_root__root__sub4__sub4sub1__typesub4sub12["type.sub4sub1-2"]:::tf-resource
+  r_root__root__sub4__sub4sub1__typesub4sub12 ---> n_root__root__sub4__sub4sub1__typesub4sub12_n["#34;name-sub4sub1-2-${var.suffix}#34;"]:::tf-name
   p_root --> m_root__root__root__sub4__sub4sub1__sub4sub1sub1["module.sub4<br>./sub4<br><b>/</b><br>module.sub4sub1<br>./sub4sub1<br><b>/</b><br>module.sub4sub1sub1<br>./sub4sub1sub1<br>*for_each = var.value3*"]:::tf-int-mod
-  m_root__root__root__sub4__sub4sub1__sub4sub1sub1 ---> r_root__root__root__sub4__sub4sub1__sub4sub1sub1__sub4sub1sub1["type.sub4sub1sub1"]:::tf-resource
-  r_root__root__root__sub4__sub4sub1__sub4sub1sub1__sub4sub1sub1 ---> n_root__root__root__sub4__sub4sub1__sub4sub1sub1__sub4sub1sub1_n:::tf-name@{ shape: procs, label: "#34;name-sub4sub1sub1-${var.suffix}#34;"}
+  m_root__root__root__sub4__sub4sub1__sub4sub1sub1 ---> r_root__root__root__sub4__sub4sub1__sub4sub1sub1__typesub4sub1sub1["type.sub4sub1sub1"]:::tf-resource
+  r_root__root__root__sub4__sub4sub1__sub4sub1sub1__typesub4sub1sub1 ---> n_root__root__root__sub4__sub4sub1__sub4sub1sub1__typesub4sub1sub1_n:::tf-name@{ shape: procs, label: "#34;name-sub4sub1sub1-${var.suffix}#34;"}
   p_sub1["sub1"]:::tf-path
-  p_sub1 ----> r_sub1__sub1["type.sub1"]:::tf-resource
-  r_sub1__sub1 ---> n_sub1__sub1_n["#34;name-sub1-${var.suffix}#34;"]:::tf-name
+  p_sub1 ----> r_sub1__typesub1["type.sub1"]:::tf-resource
+  r_sub1__typesub1 ---> n_sub1__typesub1_n["#34;name-sub1-${var.suffix}#34;"]:::tf-name
   p_sub2callingsub3["sub2-calling-sub3"]:::tf-path
-  p_sub2callingsub3 ----> r_sub2callingsub3__sub2["type.sub2"]:::tf-resource
-  r_sub2callingsub3__sub2 ---> n_sub2callingsub3__sub2_n["#34;name-sub2-${var.suffix}#34;"]:::tf-name
+  p_sub2callingsub3 ----> r_sub2callingsub3__typesub2["type.sub2"]:::tf-resource
+  r_sub2callingsub3__typesub2 ---> n_sub2callingsub3__typesub2_n["#34;name-sub2-${var.suffix}#34;"]:::tf-name
   p_sub2callingsub3 --> m_sub2callingsub3__sub3["module.sub3<br>../sub3"]:::tf-int-mod
-  m_sub2callingsub3__sub3 ---> r_sub2callingsub3__sub3__sub3["type.sub3"]:::tf-resource
-  r_sub2callingsub3__sub3__sub3 ---> n_sub2callingsub3__sub3__sub3_n["#34;name-sub3-${var.suffix}#34;"]:::tf-name
+  m_sub2callingsub3__sub3 ---> r_sub2callingsub3__sub3__typesub3["type.sub3"]:::tf-resource
+  r_sub2callingsub3__sub3__typesub3 ---> n_sub2callingsub3__sub3__typesub3_n["#34;name-sub3-${var.suffix}#34;"]:::tf-name
   p_sub3["sub3"]:::tf-path
-  p_sub3 ----> r_sub3__sub3["type.sub3"]:::tf-resource
-  r_sub3__sub3 ---> n_sub3__sub3_n["#34;name-sub3-${var.suffix}#34;"]:::tf-name
+  p_sub3 ----> r_sub3__typesub3["type.sub3"]:::tf-resource
+  r_sub3__typesub3 ---> n_sub3__typesub3_n["#34;name-sub3-${var.suffix}#34;"]:::tf-name
   p_sub4["sub4"]:::tf-path
   p_sub4 --> m_sub4__sub4sub1["module.sub4sub1<br>./sub4sub1"]:::tf-int-mod
-  m_sub4__sub4sub1 ---> r_sub4__sub4sub1__sub4sub11["type.sub4sub1-1"]:::tf-resource
-  r_sub4__sub4sub1__sub4sub11 ---> n_sub4__sub4sub1__sub4sub11_n["#34;name-sub4sub1-1-${var.suffix}#34;"]:::tf-name
-  m_sub4__sub4sub1 ---> r_sub4__sub4sub1__sub4sub12["type.sub4sub1-2"]:::tf-resource
-  r_sub4__sub4sub1__sub4sub12 ---> n_sub4__sub4sub1__sub4sub12_n["#34;name-sub4sub1-2-${var.suffix}#34;"]:::tf-name
+  m_sub4__sub4sub1 ---> r_sub4__sub4sub1__typesub4sub11["type.sub4sub1-1"]:::tf-resource
+  r_sub4__sub4sub1__typesub4sub11 ---> n_sub4__sub4sub1__typesub4sub11_n["#34;name-sub4sub1-1-${var.suffix}#34;"]:::tf-name
+  m_sub4__sub4sub1 ---> r_sub4__sub4sub1__typesub4sub12["type.sub4sub1-2"]:::tf-resource
+  r_sub4__sub4sub1__typesub4sub12 ---> n_sub4__sub4sub1__typesub4sub12_n["#34;name-sub4sub1-2-${var.suffix}#34;"]:::tf-name
   p_sub4 --> m_sub4__sub4__sub4sub1__sub4sub1sub1["module.sub4sub1<br>./sub4sub1<br><b>/</b><br>module.sub4sub1sub1<br>./sub4sub1sub1<br>*for_each = var.value3*"]:::tf-int-mod
-  m_sub4__sub4__sub4sub1__sub4sub1sub1 ---> r_sub4__sub4__sub4sub1__sub4sub1sub1__sub4sub1sub1["type.sub4sub1sub1"]:::tf-resource
-  r_sub4__sub4__sub4sub1__sub4sub1sub1__sub4sub1sub1 ---> n_sub4__sub4__sub4sub1__sub4sub1sub1__sub4sub1sub1_n:::tf-name@{ shape: procs, label: "#34;name-sub4sub1sub1-${var.suffix}#34;"}
+  m_sub4__sub4__sub4sub1__sub4sub1sub1 ---> r_sub4__sub4__sub4sub1__sub4sub1sub1__typesub4sub1sub1["type.sub4sub1sub1"]:::tf-resource
+  r_sub4__sub4__sub4sub1__sub4sub1sub1__typesub4sub1sub1 ---> n_sub4__sub4__sub4sub1__sub4sub1sub1__typesub4sub1sub1_n:::tf-name@{ shape: procs, label: "#34;name-sub4sub1sub1-${var.suffix}#34;"}

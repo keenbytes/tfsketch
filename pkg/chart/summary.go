@@ -22,7 +22,7 @@ func NewSummary() *Summary {
 	return summary
 }
 
-// Reset empties all the gathered summary.
+// Reset empties all the gathered summary so that the chart generation can be re-run.
 func (s *Summary) Reset() {
 	modules := map[string]int{}
 	edges := []string{}
@@ -33,7 +33,7 @@ func (s *Summary) Reset() {
 	s.Names = &names
 }
 
-// AddModule adds a module to summary.
+// AddModule increments module occurrence in the summary.
 func (s *Summary) AddModule(module string) {
 	modules := *s.Modules
 
@@ -45,12 +45,12 @@ func (s *Summary) AddModule(module string) {
 	}
 }
 
-// AddEdge adds an edge to summary.
+// AddEdge adds an resource name edge element to the summary.
 func (s *Summary) AddEdge(edge string) {
 	*s.Edges = append(*s.Edges, edge)
 }
 
-// AddName adds a resource name to summary.
+// AddName adds a resource field name to the summary.
 func (s *Summary) AddName(name string) {
 	*s.Names = append(*s.Names, name)
 }
