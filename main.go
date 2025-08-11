@@ -57,7 +57,7 @@ func main() {
 		broccli.IsRegularFile,
 	)
 	cmd.Flag("debug", "d", "", "Enable debug mode", broccli.TypeBool, 0)
-	cmd.Flag("only-root", "", "", "Draw only root directory", broccli.TypeBool, 0)
+	cmd.Flag("only-root", "r", "", "Draw only root directory", broccli.TypeBool, 0)
 	cmd.Flag(
 		"include-filenames",
 		"f",

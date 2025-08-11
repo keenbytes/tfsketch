@@ -25,7 +25,7 @@ docker run \
   -w / \
   -v $(pwd)/tests:/tests \
   -v $(pwd)/tmp:/output \
-  keenbytes/tfsketch:v0.3.0 \
+  keenbytes/tfsketch:v0.4.0 \
   gen -o /tests/external-modules.yml -t '^type$' /tests/03-external-modules /output/03-external-modules.mmd
 ```
 
@@ -45,11 +45,14 @@ Check below help message for `gen` command:
     Generate diagram
     
     Optional flags: 
-      -t,    --type-regexp REGEXP   Regular expression to filter type of the resource
-      -d,    --debug                Enable debug mode
-      -d2,   --include-filenames    Display source filenames on the diagram
-      -d1,   --only-root            Draw only the root directory
-      -o,    --overrides FILE       YAML file mapping external modules to local paths
+
+    -d,  --debug                Enable debug mode
+    -f,  --include-filenames    Display source filenames on the diagram
+    -s,  --minify               Minify element names in the chart to save space
+    -n,  --module               Treat path as module and draw 'modules' sub-directory
+    -r,  --only-root            Draw only root directory
+    -o,  --overrides FILE       YAML file mapping external modules to local paths
+    -t,  --type-regexp REGEXP   Regular expression to filter type of the resource
 
 The command accepts three arguments:
 
@@ -60,7 +63,7 @@ The command accepts three arguments:
 A Docker image is also available, though it requires binding local volumes.
 
 ```
-docker run --platform linux/amd64 keenbytes/tfsketch:v0.3.0 gen -h
+docker run --platform linux/amd64 keenbytes/tfsketch:v0.4.0 gen -h
 ```
 
 ## Motivation
