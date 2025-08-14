@@ -22,42 +22,6 @@ const (
 	labelFieldNameEmpty     = "empty!"
 )
 
-//nolint:gochecknoglobals
-var (
-	tfResourceDefinition = &hcl.BodySchema{
-		Attributes: []hcl.AttributeSchema{
-			{
-				Name:     "name",
-				Required: false,
-			},
-			{
-				Name:     "id",
-				Required: false,
-			},
-			{
-				Name:     "name_prefix",
-				Required: false,
-			},
-			{
-				Name:     "for_each",
-				Required: false,
-			},
-		},
-	}
-	tfModuleDefinition = &hcl.BodySchema{
-		Attributes: []hcl.AttributeSchema{
-			{
-				Name:     "source",
-				Required: false,
-			},
-			{
-				Name:     "version",
-				Required: false,
-			},
-		},
-	}
-)
-
 // Traverser represents functionality for scanning a Terraform directory.
 type Traverser struct {
 	// RegexpIgnoreDir is a regular expression used to check if directory name should be ignored
@@ -72,10 +36,14 @@ type Traverser struct {
 	RegexpResourceName *regexp.Regexp
 	// Parser is an HCL parser
 	Parser *hclparse.Parser
+	// HCLBodySchema contains a schema for parsing HCL. It defines what attributes should be extracted.
+	HCLBodySchema *hcl.BodySchema
 }
 
 // NewTraverser returns new Traverser object.
 func NewTraverser(container *Container, resourceType, resourceName string) *Traverser {
+	hclBodySchema := NewHCLBodySchema()
+
 	traverser := &Traverser{
 		Parser:             hclparse.NewParser(),
 		RegexpIgnoreDir:    regexp.MustCompile(`^(example[s]*|test[s]*|\..*)$`),
@@ -83,6 +51,7 @@ func NewTraverser(container *Container, resourceType, resourceName string) *Trav
 		Container:          container,
 		RegexpResourceType: regexp.MustCompile(resourceType),
 		RegexpResourceName: regexp.MustCompile(resourceName),
+		HCLBodySchema:      hclBodySchema,
 	}
 
 	return traverser
@@ -452,7 +421,7 @@ func (t *Traverser) parseFile(tfPath *TfPath, fileName string) error {
 
 			resource.FileName = fileName
 			resource.FilePath = filePath
-			tfPath.Resources[resource.Type + "." + resource.Name] = resource
+			tfPath.Resources[resource.Type+"."+resource.Name] = resource
 
 			slog.Info(
 				fmt.Sprintf(
@@ -569,7 +538,7 @@ func (t *Traverser) parseHCLBlockModule(block *hcl.Block) *TfModule {
 func (t *Traverser) getNameFromHCLBlock(block *hcl.Block) (string, error) {
 	name := block.Labels[0]
 
-	bodyContent, _, diags := block.Body.PartialContent(tfResourceDefinition)
+	bodyContent, _, diags := block.Body.PartialContent(t.HCLBodySchema)
 	if diags.HasErrors() {
 		return "", fmt.Errorf(
 			"error getting partial content: %s.%s: %s",
@@ -649,7 +618,7 @@ func (t *Traverser) getNameFromHCLBlock(block *hcl.Block) (string, error) {
 func (t *Traverser) getForEachFromHCLBlock(block *hcl.Block) (string, error) {
 	name := block.Labels[0]
 
-	bodyContent, _, diags := block.Body.PartialContent(tfResourceDefinition)
+	bodyContent, _, diags := block.Body.PartialContent(t.HCLBodySchema)
 	if diags.HasErrors() {
 		return "", fmt.Errorf(
 			"error getting partial content: %s.%s: %s",
@@ -699,7 +668,7 @@ func (t *Traverser) getForEachFromHCLBlock(block *hcl.Block) (string, error) {
 func (t *Traverser) getSourceFromHCLBlock(block *hcl.Block) (string, string, error) {
 	name := block.Labels[0]
 
-	bodyContent, _, diags := block.Body.PartialContent(tfModuleDefinition)
+	bodyContent, _, diags := block.Body.PartialContent(t.HCLBodySchema)
 	if diags.HasErrors() {
 		return "", "", fmt.Errorf(
 			"error getting partial content: %s.%s: %s",

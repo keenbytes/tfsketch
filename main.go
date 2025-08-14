@@ -99,8 +99,10 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	slog.Info("🚀 tfsketch starting...")
 
 	setLogger(cli.Flag("debug"))
-	terraformPath, resourceType, resourceName, outputFile, overridesPath, onlyRoot, includeFilenames, minify, 
-		module := getGenArgsAndFlags(cli)
+	terraformPath, resourceType, resourceName, outputFile,
+		overridesPath, onlyRoot, includeFilenames, minify, module := getGenArgsAndFlags(
+		cli,
+	)
 
 	container := tfpath.NewContainer()
 
@@ -243,8 +245,11 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	return 0
 }
 
+//
 //nolint:goconst
-func getGenArgsAndFlags(cli *broccli.Broccli) (string, string, string, string, string, bool, bool, bool, bool) {
+func getGenArgsAndFlags(
+	cli *broccli.Broccli,
+) (string, string, string, string, string, bool, bool, bool, bool) {
 	terraformPath := cli.Arg("path")
 	outputFile := cli.Arg("output")
 	resourceType := cli.Flag("type-regexp")
@@ -273,7 +278,7 @@ func getGenArgsAndFlags(cli *broccli.Broccli) (string, string, string, string, s
 	slog.Info("✨ Minify element names:            " + minify)
 	slog.Info("✨ Draw 'modules' sub-directory:    " + module)
 
-	return terraformPath, resourceType, resourceName, outputFile, overrides, onlyRoot == "true", 
+	return terraformPath, resourceType, resourceName, outputFile, overrides, onlyRoot == "true",
 		includeFilenames == "true", minify == "true", module == "true"
 }
 

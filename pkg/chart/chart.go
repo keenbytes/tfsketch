@@ -161,6 +161,7 @@ func (m *MermaidFlowChart) writePath(tfPath *tfpath.TfPath) {
 			if !m.module {
 				continue
 			}
+
 			if !strings.HasPrefix(childTfPath.RelPath, "modules/") {
 				continue
 			}
@@ -304,7 +305,7 @@ func (m *MermaidFlowChart) resourceElement(
 	resource *tfpath.TfResource,
 	elPathID string,
 ) (string, string, string, bool) {
-	id := elPathID + elementSeparator + m.elementID(resource.Type + partSeparator + resource.Name)
+	id := elPathID + elementSeparator + m.elementID(resource.Type+partSeparator+resource.Name)
 	label := fmt.Sprintf("%s.%s", resource.Type, resource.Name)
 
 	isMultiple := false

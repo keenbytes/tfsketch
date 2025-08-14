@@ -14,7 +14,11 @@ flowchart LR
   classDef tf-ext-mod fill:#7da8e8,text-align:left
   classDef tf-name fill:#eb91c7
   p_root["."]:::tf-path
+  p_root ----> r_root__typeroot11["type.root-1-1"]:::tf-resource
+  r_root__typeroot11 ---> n_root__typeroot11_n["#34;name-root-1-1#34;"]:::tf-name
   p_root --> m_root__mod11["module.mod1-1<br>external-module-1(at)0.0.1"]:::tf-int-mod
+  m_root__mod11 ---> r_root__mod11__nevermindnevermind1["nevermind.nevermind-1"]:::tf-resource
+  r_root__mod11__nevermindnevermind1 ---> n_root__mod11__nevermindnevermind1_n["#34;name-nevermind-1#34;"]:::tf-name
   m_root__mod11 ---> r_root__mod11__typeextmod11["type.extmod-1-1"]:::tf-resource
   r_root__mod11__typeextmod11 ---> n_root__mod11__typeextmod11_n["#34;name-extmod-1-1#34;"]:::tf-name
   m_root__mod11 ---> r_root__mod11__typeextmod12["type.extmod-1-2<br>*for_each = var.value6*"]:::tf-resource
@@ -24,3 +28,9 @@ flowchart LR
   r_root__mod21__typeextmod21 ---> n_root__mod21__typeextmod21_n["#34;name-extmod-2-1#34;"]:::tf-name
   m_root__mod21 ---> r_root__mod21__typeextmod22["type.extmod-2-2"]:::tf-resource
   r_root__mod21__typeextmod22 ---> n_root__mod21__typeextmod22_n["#34;name-extmod-2-2#34;"]:::tf-name
+  p_root --> m_root__root__mod21__subm2["module.mod2-1<br>external-module-2(at)0.0.1<br><b>/</b><br>module.subm2<br>./subm2<br>*for_each = var.value7*"]:::tf-int-mod
+  m_root__root__mod21__subm2 ---> r_root__root__mod21__subm2__typesubm21["type.subm2-1"]:::tf-resource
+  r_root__root__mod21__subm2__typesubm21 ---> n_root__root__mod21__subm2__typesubm21_n:::tf-name@{ shape: procs, label: "#34;name-subm2-1#34;"}
+  p_root --> m_root__mod2sub11["module.mod2sub1-1<br>external-module-2//modules/sub1(at)0.0.1"]:::tf-int-mod
+  m_root__mod2sub11 ---> r_root__mod2sub11__typesubm11["type.subm1-1"]:::tf-resource
+  r_root__mod2sub11__typesubm11 ---> n_root__mod2sub11__typesubm11_n["#34;name-subm1-1#34;"]:::tf-name
