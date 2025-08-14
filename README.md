@@ -25,7 +25,7 @@ docker run \
   -w / \
   -v $(pwd)/tests:/tests \
   -v $(pwd)/tmp:/output \
-  keenbytes/tfsketch:v0.4.1 \
+  keenbytes/tfsketch:v0.4.2 \
   gen -o /tests/external-modules.yml -t '^type$' /tests/03-external-modules /output/03-external-modules.mmd
 ```
 
@@ -46,14 +46,15 @@ Check below help message for `gen` command:
     
     Optional flags: 
 
-    -d,  --debug                Enable debug mode
-    -f,  --include-filenames    Display source filenames on the diagram
-    -s,  --minify               Minify element names in the chart to save space
-    -m,  --module               Treat path as module and draw 'modules' sub-directory
-    -n,  --name-regexp REGEXP   Regular expression to filter name of the resource
-    -r,  --only-root            Draw only root directory
-    -o,  --overrides FILE       YAML file mapping external modules to local paths
-    -t,  --type-regexp REGEXP   Regular expression to filter type of the resource
+    -d,  --debug                                Enable debug mode
+    -a,  --display-attributes ATTR1,ATTR2,...   Comma-separated resource attributes; the first found is used as the chart’s display name
+    -f,  --include-filenames                    Display source filenames on the diagram
+    -s,  --minify                               Minify element names in the chart to save space
+    -m,  --module                               Treat path as module and draw 'modules' sub-directory
+    -n,  --name-regexp REGEXP                   Regular expression to filter name of the resource
+    -r,  --only-root                            Draw only root directory
+    -o,  --overrides FILE                       YAML file mapping external modules to local paths
+    -t,  --type-regexp REGEXP                   Regular expression to filter type of the resource
 
 The command accepts three arguments:
 
@@ -64,7 +65,7 @@ The command accepts three arguments:
 A Docker image is also available, though it requires binding local volumes.
 
 ```
-docker run --platform linux/amd64 keenbytes/tfsketch:v0.4.1 gen -h
+docker run --platform linux/amd64 keenbytes/tfsketch:v0.4.2 gen -h
 ```
 
 ## Motivation
