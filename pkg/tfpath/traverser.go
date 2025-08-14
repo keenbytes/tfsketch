@@ -68,18 +68,21 @@ type Traverser struct {
 	Container *Container
 	// RegexpResourceType is type of the resource to search, eg. ^aws_iam_role$
 	RegexpResourceType *regexp.Regexp
+	// RegexpResourceName is type of the resource to search, eg. ^this$
+	RegexpResourceName *regexp.Regexp
 	// Parser is an HCL parser
 	Parser *hclparse.Parser
 }
 
 // NewTraverser returns new Traverser object.
-func NewTraverser(container *Container, resourceType string) *Traverser {
+func NewTraverser(container *Container, resourceType, resourceName string) *Traverser {
 	traverser := &Traverser{
 		Parser:             hclparse.NewParser(),
 		RegexpIgnoreDir:    regexp.MustCompile(`^(example[s]*|test[s]*|\..*)$`),
 		RegexpModuleDir:    regexp.MustCompile(`^modules$`),
 		Container:          container,
 		RegexpResourceType: regexp.MustCompile(resourceType),
+		RegexpResourceName: regexp.MustCompile(resourceName),
 	}
 
 	return traverser
@@ -526,6 +529,10 @@ func (t *Traverser) parseHCLBlockResource(block *hcl.Block) *TfResource {
 	}
 
 	resourceName := block.Labels[1]
+
+	if !t.RegexpResourceName.MatchString(resourceName) {
+		return nil
+	}
 
 	resourceInstance := &TfResource{
 		Type: resourceType,
