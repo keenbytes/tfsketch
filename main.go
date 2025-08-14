@@ -57,6 +57,14 @@ func main() {
 		0,
 	)
 	cmd.Flag(
+		"display-attributes",
+		"a",
+		"ATTR1,ATTR2,...",
+		"Comma-separated resource attributes; the first found is used as the chart’s display name",
+		broccli.TypeAlphanumeric,
+		broccli.AllowHyphen|broccli.AllowUnderscore|broccli.AllowMultipleValues,
+	)
+	cmd.Flag(
 		"overrides",
 		"o",
 		"FILE",
@@ -99,14 +107,12 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	slog.Info("🚀 tfsketch starting...")
 
 	setLogger(cli.Flag("debug"))
-	terraformPath, resourceType, resourceName, outputFile,
-		overridesPath, onlyRoot, includeFilenames, minify, module := getGenArgsAndFlags(
-		cli,
-	)
+	terraformPath, resourceType, resourceName, displayAttributes, outputFile,
+		overridesPath, onlyRoot, includeFilenames, minify, module := getGenArgsAndFlags(cli)
 
 	container := tfpath.NewContainer()
 
-	traverser := tfpath.NewTraverser(container, resourceType, resourceName)
+	traverser := tfpath.NewTraverser(container, resourceType, resourceName, displayAttributes)
 
 	var err error
 
@@ -249,7 +255,7 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 //nolint:goconst
 func getGenArgsAndFlags(
 	cli *broccli.Broccli,
-) (string, string, string, string, string, bool, bool, bool, bool) {
+) (string, string, string, string, string, string, bool, bool, bool, bool) {
 	terraformPath := cli.Arg("path")
 	outputFile := cli.Arg("output")
 	resourceType := cli.Flag("type-regexp")
@@ -259,6 +265,7 @@ func getGenArgsAndFlags(
 	includeFilenames := cli.Flag("include-filenames")
 	minify := cli.Flag("minify")
 	module := cli.Flag("module")
+	displayAttributes := cli.Flag("display-attributes")
 
 	if resourceType == "" {
 		resourceType = "^.*$"
@@ -271,6 +278,7 @@ func getGenArgsAndFlags(
 	slog.Info("✨ Terraform path to scan:          " + terraformPath)
 	slog.Info("✨ Resource type regexp:            " + resourceType)
 	slog.Info("✨ Resource name regexp:            " + resourceName)
+	slog.Info("✨ Display attributes:              " + displayAttributes)
 	slog.Info("✨ Output diagram destination:      " + outputFile)
 	slog.Info("✨ External modules overrides file: " + overrides)
 	slog.Info("✨ Draw only root path:             " + onlyRoot)
@@ -278,7 +286,7 @@ func getGenArgsAndFlags(
 	slog.Info("✨ Minify element names:            " + minify)
 	slog.Info("✨ Draw 'modules' sub-directory:    " + module)
 
-	return terraformPath, resourceType, resourceName, outputFile, overrides, onlyRoot == "true",
+	return terraformPath, resourceType, resourceName, displayAttributes, outputFile, overrides, onlyRoot == "true",
 		includeFilenames == "true", minify == "true", module == "true"
 }
 

@@ -34,6 +34,8 @@ type Traverser struct {
 	RegexpResourceType *regexp.Regexp
 	// RegexpResourceName is type of the resource to search, eg. ^this$
 	RegexpResourceName *regexp.Regexp
+	// DisplayAttributes contains is comma-separated resource attributes where the first found is used as the chart’s display name
+	DisplayAttributes []string
 	// Parser is an HCL parser
 	Parser *hclparse.Parser
 	// HCLBodySchema contains a schema for parsing HCL. It defines what attributes should be extracted.
@@ -41,9 +43,7 @@ type Traverser struct {
 }
 
 // NewTraverser returns new Traverser object.
-func NewTraverser(container *Container, resourceType, resourceName string) *Traverser {
-	hclBodySchema := NewHCLBodySchema()
-
+func NewTraverser(container *Container, resourceType, resourceName, displayAttributes string) *Traverser {
 	traverser := &Traverser{
 		Parser:             hclparse.NewParser(),
 		RegexpIgnoreDir:    regexp.MustCompile(`^(example[s]*|test[s]*|\..*)$`),
@@ -51,8 +51,16 @@ func NewTraverser(container *Container, resourceType, resourceName string) *Trav
 		Container:          container,
 		RegexpResourceType: regexp.MustCompile(resourceType),
 		RegexpResourceName: regexp.MustCompile(resourceName),
-		HCLBodySchema:      hclBodySchema,
 	}
+
+	if displayAttributes != "" {
+		traverser.DisplayAttributes = strings.Split(displayAttributes, ",")
+	} else {
+		traverser.DisplayAttributes = []string{"name", "id", "name_prefix"}
+	}
+
+	hclBodySchema := NewHCLBodySchema(traverser.DisplayAttributes)
+	traverser.HCLBodySchema = hclBodySchema
 
 	return traverser
 }
@@ -551,21 +559,15 @@ func (t *Traverser) getNameFromHCLBlock(block *hcl.Block) (string, error) {
 	attrToGet := ""
 
 	for attrName := range bodyContent.Attributes {
-		if attrName == "name" {
-			attrToGet = attrName
+		for _, displayAttr := range t.DisplayAttributes {
+			if attrName == displayAttr {
+				attrToGet = attrName
 
-			break
+				break
+			}
 		}
 
-		if attrToGet == "" && attrName == "name_prefix" {
-			attrToGet = attrName
-
-			break
-		}
-
-		if attrToGet == "" && attrName == "id" {
-			attrToGet = attrName
-
+		if attrToGet != "" {
 			break
 		}
 	}
