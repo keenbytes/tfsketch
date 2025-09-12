@@ -2,7 +2,7 @@
 
 go build .
 
-./tfsketch gen -t '^type$' tests/01-only-resources/ tests/01-only-resources.mmd
+./tfsketch gen -d -i '^(\.|s.*)$' -e '.*skip.*' -t '^type$' tests/01-only-resources/ tests/01-only-resources.mmd
 mmdc -i tests/01-only-resources.mmd -o tests/01-only-resources.svg --configFile=tests/config.json
 
 ./tfsketch gen -t '^type$' -a name,id tests/02-local-modules/ tests/02-local-modules.mmd

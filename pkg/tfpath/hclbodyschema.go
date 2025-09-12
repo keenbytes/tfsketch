@@ -15,7 +15,7 @@ func NewHCLBodySchema(displayAttributes []string) *hcl.BodySchema {
 		}
 
 		hclBodySchema.Attributes = append(hclBodySchema.Attributes, hcl.AttributeSchema{
-			Name: attribute,
+			Name:     attribute,
 			Required: false,
 		})
 	}
@@ -23,7 +23,7 @@ func NewHCLBodySchema(displayAttributes []string) *hcl.BodySchema {
 	// Other attributes (for modules and syntax)
 	for _, attribute := range []string{"source", "version", "for_each"} {
 		hclBodySchema.Attributes = append(hclBodySchema.Attributes, hcl.AttributeSchema{
-			Name: attribute,
+			Name:     attribute,
 			Required: false,
 		})
 	}

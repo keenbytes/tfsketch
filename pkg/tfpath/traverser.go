@@ -30,11 +30,16 @@ type Traverser struct {
 	RegexpModuleDir *regexp.Regexp
 	// Container contains all the modules that have been found so far
 	Container *Container
+	// RegexpIncludePath is used to include paths
+	RegexpIncludePath *regexp.Regexp
+	// RegexpExcludePath is used to exclude paths
+	RegexpExcludePath *regexp.Regexp
 	// RegexpResourceType is type of the resource to search, eg. ^aws_iam_role$
 	RegexpResourceType *regexp.Regexp
 	// RegexpResourceName is type of the resource to search, eg. ^this$
 	RegexpResourceName *regexp.Regexp
-	// DisplayAttributes contains is comma-separated resource attributes where the first found is used as the chart’s display name
+	// DisplayAttributes contains is comma-separated resource attributes where the first found is used as the
+	// chart’s display name
 	DisplayAttributes []string
 	// Parser is an HCL parser
 	Parser *hclparse.Parser
@@ -43,14 +48,19 @@ type Traverser struct {
 }
 
 // NewTraverser returns new Traverser object.
-func NewTraverser(container *Container, resourceType, resourceName, displayAttributes string) *Traverser {
+func NewTraverser(
+	container *Container,
+	pathIncludeRegexp, pathExcludeRegexp, typeRegexp, nameRegexp, displayAttributes string,
+) *Traverser {
 	traverser := &Traverser{
 		Parser:             hclparse.NewParser(),
 		RegexpIgnoreDir:    regexp.MustCompile(`^(example[s]*|test[s]*|\..*)$`),
 		RegexpModuleDir:    regexp.MustCompile(`^modules$`),
 		Container:          container,
-		RegexpResourceType: regexp.MustCompile(resourceType),
-		RegexpResourceName: regexp.MustCompile(resourceName),
+		RegexpIncludePath:  regexp.MustCompile(pathIncludeRegexp),
+		RegexpExcludePath:  regexp.MustCompile(pathExcludeRegexp),
+		RegexpResourceType: regexp.MustCompile(typeRegexp),
+		RegexpResourceName: regexp.MustCompile(nameRegexp),
 	}
 
 	if displayAttributes != "" {
@@ -137,7 +147,6 @@ func (t *Traverser) walk(tfPath *TfPath, extractModules bool) ([]string, error) 
 			if err != nil {
 				return fmt.Errorf("error walking directory %s: %s", currentPath, err.Error())
 			}
-
 			// ignore files
 			if !dirEntry.IsDir() {
 				return nil
@@ -147,6 +156,20 @@ func (t *Traverser) walk(tfPath *TfPath, extractModules bool) ([]string, error) 
 			currentParentDir := filepath.Dir(currentPath)
 			currentParentDirName := filepath.Base(currentParentDir)
 			currentDirName := filepath.Base(currentPath)
+
+			// Include relative path based on a regular expression
+			if !t.RegexpIncludePath.MatchString(currentRelPath) {
+				slog.Debug(fmt.Sprintf("🚫 Skipped path: 📁%s [📁%s]", currentPath, currentRelPath))
+
+				return fs.SkipDir
+			}
+
+			// Exclude relative path based on a regular expression
+			if t.RegexpExcludePath.MatchString(currentRelPath) {
+				slog.Debug(fmt.Sprintf("🚫 Skipped path: 📁%s [📁%s]", currentPath, currentRelPath))
+
+				return fs.SkipDir
+			}
 
 			// if directory is called 'tests' or 'examples' then do not walk the dir
 			if t.RegexpIgnoreDir.MatchString(currentDirName) {

@@ -24,6 +24,7 @@ const (
 	exitCodeErrGeneratingChart          = 41
 )
 
+//nolint:funlen
 func main() {
 	cli := broccli.NewBroccli(
 		"tfsketch",
@@ -40,6 +41,22 @@ func main() {
 		broccli.IsDirectory|broccli.IsExistent|broccli.IsRequired,
 	)
 	cmd.Arg("output", "FILE", "Path to an output file", broccli.TypePathFile, broccli.IsRequired)
+	cmd.Flag(
+		"path-include-regexp",
+		"i",
+		"REGEXP",
+		"Regular expression to include paths",
+		broccli.TypeString,
+		0,
+	)
+	cmd.Flag(
+		"path-exclude-regexp",
+		"e",
+		"REGEXP",
+		"Regular expression to exclude paths",
+		broccli.TypeString,
+		0,
+	)
 	cmd.Flag(
 		"type-regexp",
 		"t",
@@ -107,12 +124,20 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	slog.Info("🚀 tfsketch starting...")
 
 	setLogger(cli.Flag("debug"))
-	terraformPath, resourceType, resourceName, displayAttributes, outputFile,
-		overridesPath, onlyRoot, includeFilenames, minify, module := getGenArgsAndFlags(cli)
+	terraformPath, pathIncludeRegexp, pathExcludeRegexp, typeRegexp, nameRegexp,
+		displayAttributes, outputFile, overridesPath, onlyRoot, includeFilenames,
+		minify, module := getGenArgsAndFlags(cli)
 
 	container := tfpath.NewContainer()
 
-	traverser := tfpath.NewTraverser(container, resourceType, resourceName, displayAttributes)
+	traverser := tfpath.NewTraverser(
+		container,
+		pathIncludeRegexp,
+		pathExcludeRegexp,
+		typeRegexp,
+		nameRegexp,
+		displayAttributes,
+	)
 
 	var err error
 
@@ -255,11 +280,13 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 //nolint:goconst
 func getGenArgsAndFlags(
 	cli *broccli.Broccli,
-) (string, string, string, string, string, string, bool, bool, bool, bool) {
+) (string, string, string, string, string, string, string, string, bool, bool, bool, bool) {
 	terraformPath := cli.Arg("path")
 	outputFile := cli.Arg("output")
-	resourceType := cli.Flag("type-regexp")
-	resourceName := cli.Flag("name-regexp")
+	pathIncludeRegexp := cli.Flag("path-include-regexp")
+	pathExcludeRegexp := cli.Flag("path-exclude-regexp")
+	typeRegexp := cli.Flag("type-regexp")
+	nameRegexp := cli.Flag("name-regexp")
 	overrides := cli.Flag("overrides")
 	onlyRoot := cli.Flag("only-root")
 	includeFilenames := cli.Flag("include-filenames")
@@ -267,17 +294,27 @@ func getGenArgsAndFlags(
 	module := cli.Flag("module")
 	displayAttributes := cli.Flag("display-attributes")
 
-	if resourceType == "" {
-		resourceType = "^.*$"
+	if typeRegexp == "" {
+		typeRegexp = "^.*$"
 	}
 
-	if resourceName == "" {
-		resourceName = "^.*$"
+	if nameRegexp == "" {
+		nameRegexp = "^.*$"
+	}
+
+	if pathIncludeRegexp == "" {
+		pathIncludeRegexp = "^.*$"
+	}
+
+	if pathExcludeRegexp == "" {
+		pathExcludeRegexp = "^SillyName$"
 	}
 
 	slog.Info("✨ Terraform path to scan:          " + terraformPath)
-	slog.Info("✨ Resource type regexp:            " + resourceType)
-	slog.Info("✨ Resource name regexp:            " + resourceName)
+	slog.Info("✨ Include path regexp:             " + pathIncludeRegexp)
+	slog.Info("✨ Exclude path regexp:             " + pathExcludeRegexp)
+	slog.Info("✨ Resource type regexp:            " + typeRegexp)
+	slog.Info("✨ Resource name regexp:            " + nameRegexp)
 	slog.Info("✨ Display attributes:              " + displayAttributes)
 	slog.Info("✨ Output diagram destination:      " + outputFile)
 	slog.Info("✨ External modules overrides file: " + overrides)
@@ -286,8 +323,8 @@ func getGenArgsAndFlags(
 	slog.Info("✨ Minify element names:            " + minify)
 	slog.Info("✨ Draw 'modules' sub-directory:    " + module)
 
-	return terraformPath, resourceType, resourceName, displayAttributes, outputFile, overrides, onlyRoot == "true",
-		includeFilenames == "true", minify == "true", module == "true"
+	return terraformPath, pathIncludeRegexp, pathExcludeRegexp, typeRegexp, nameRegexp, displayAttributes, outputFile,
+		overrides, onlyRoot == "true", includeFilenames == "true", minify == "true", module == "true"
 }
 
 func setLogger(debug string) {

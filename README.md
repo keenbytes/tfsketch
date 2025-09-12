@@ -25,7 +25,7 @@ docker run \
   -w / \
   -v $(pwd)/tests:/tests \
   -v $(pwd)/tmp:/output \
-  keenbytes/tfsketch:v0.4.2 \
+  keenbytes/tfsketch:v0.5.0 \
   gen -o /tests/external-modules.yml -t '^type$' /tests/03-external-modules /output/03-external-modules.mmd
 ```
 
@@ -55,6 +55,8 @@ Check below help message for `gen` command:
     -r,  --only-root                            Draw only root directory
     -o,  --overrides FILE                       YAML file mapping external modules to local paths
     -t,  --type-regexp REGEXP                   Regular expression to filter type of the resource
+    -e,  --path-exclude-regexp REGEXP           Regular expression to exclude paths
+    -i,  --path-include-regexp REGEXP           Regular expression to include paths
 
 The command accepts three arguments:
 
@@ -65,7 +67,7 @@ The command accepts three arguments:
 A Docker image is also available, though it requires binding local volumes.
 
 ```
-docker run --platform linux/amd64 keenbytes/tfsketch:v0.4.2 gen -h
+docker run --platform linux/amd64 keenbytes/tfsketch:v0.5.0 gen -h
 ```
 
 ## Motivation
