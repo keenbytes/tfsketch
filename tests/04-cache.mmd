@@ -1,0 +1,18 @@
+---
+config:
+  theme: redux
+  flowchart:
+    diagramPadding: 5
+    padding: 5
+    nodeSpacing: 10
+    wrappingWidth: 700
+---
+flowchart LR
+  classDef tf-path fill:#c87de8
+  classDef tf-resource stroke:#e7b6fc,color:#c87de8,text-align:left
+  classDef tf-int-mod fill:#e7b6fc,text-align:left
+  classDef tf-ext-mod fill:#7da8e8,text-align:left
+  classDef tf-name fill:#eb91c7
+  p_root["."]:::tf-path
+  p_root ----> r_root__typerootcache1["type.root-cache-1"]:::tf-resource
+  r_root__typerootcache1 ---> n_root__typerootcache1_n["#34;root-cache-1#34;"]:::tf-name

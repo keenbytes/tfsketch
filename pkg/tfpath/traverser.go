@@ -45,12 +45,14 @@ type Traverser struct {
 	Parser *hclparse.Parser
 	// HCLBodySchema contains a schema for parsing HCL. It defines what attributes should be extracted.
 	HCLBodySchema *hcl.BodySchema
+	// Cache object manages external downloaded modules
+	Cache *Cache
 }
 
 // NewTraverser returns new Traverser object.
 func NewTraverser(
 	container *Container,
-	pathIncludeRegexp, pathExcludeRegexp, typeRegexp, nameRegexp, displayAttributes string,
+	pathIncludeRegexp, pathExcludeRegexp, typeRegexp, nameRegexp, displayAttributes string, cache *Cache,
 ) *Traverser {
 	traverser := &Traverser{
 		Parser:             hclparse.NewParser(),
@@ -61,6 +63,7 @@ func NewTraverser(
 		RegexpExcludePath:  regexp.MustCompile(pathExcludeRegexp),
 		RegexpResourceType: regexp.MustCompile(typeRegexp),
 		RegexpResourceName: regexp.MustCompile(nameRegexp),
+		Cache:              cache,
 	}
 
 	if displayAttributes != "" {
@@ -82,18 +85,20 @@ func (t *Traverser) WalkPath(tfPath *TfPath, extractModules bool) error {
 		return fmt.Errorf("error walking terraform path %s: %s", tfPath.Path, err.Error())
 	}
 
-	if extractModules && len(newContainerPaths) > 0 {
-		for _, newPath := range newContainerPaths {
-			newTfPath := t.Container.Paths[newPath]
+	if !extractModules || len(newContainerPaths) == 0 {
+		return nil
+	}
 
-			_, err := t.walk(newTfPath, false)
-			if err != nil {
-				return fmt.Errorf(
-					"error walking terraform path %s: %s",
-					newTfPath.Path,
-					err.Error(),
-				)
-			}
+	for _, newPath := range newContainerPaths {
+		newTfPath := t.Container.Paths[newPath]
+
+		_, err := t.walk(newTfPath, false)
+		if err != nil {
+			return fmt.Errorf(
+				"error walking terraform path %s: %s",
+				newTfPath.Path,
+				err.Error(),
+			)
 		}
 	}
 

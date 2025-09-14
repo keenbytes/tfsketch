@@ -18,8 +18,8 @@ type Overrides struct {
 }
 
 var (
-	ErrRead      = errors.New("error reading file")
-	ErrUnmarshal = errors.New("error unmarshaling yaml file")
+	ErrRead         = errors.New("error reading file")
+	ErrUnmarshal    = errors.New("error unmarshaling yaml file")
 )
 
 // ReadFromFile takes a YAML file and gets its entries.
