@@ -67,9 +67,9 @@ func (c *Container) WalkOverrides(overrides *overrides.Overrides, traverser *Tra
 }
 
 // ParsePaths runs traverser's ParsePath on each path
-func (c *Container) ParsePaths(traverser *Traverser) error {
+func (c *Container) ParsePaths(traverser *Traverser, foundModules *[]string) error {
 	for pathName, tfPath := range c.Paths {
-		err := traverser.ParsePath(tfPath)
+		err := traverser.ParsePath(tfPath, foundModules)
 		if err != nil {
 			slog.Error(
 				fmt.Sprintf(

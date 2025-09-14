@@ -172,9 +172,30 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	}
 
 	// as of now, use paths in container
-	err = container.ParsePaths(traverser)
+	foundModules := []string{}
+	err = container.ParsePaths(traverser, &foundModules)
 	if err != nil {
 		return exitCodeErrParsingContainerPaths
+	}
+
+	if cache != nil && len(foundModules) > 0 {
+		for _, containerPathKey := range foundModules {
+			_, exists := container.Paths[containerPathKey]
+			if exists {
+				continue
+			}
+
+			_, err := cache.DownloadModule(containerPathKey)
+			if err != nil {
+				slog.Error(
+					fmt.Sprintf(
+						"❌ Error downloading module (📦%s): %s",
+						containerPathKey,
+						err.Error(),
+					),
+				)
+			}
+		}
 	}
 
 	err = container.LinkPaths(traverser)
@@ -200,7 +221,8 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 		return exitCodeErrTraversingOverrides
 	}
 
-	err = traverser.ParsePath(rootTfPath)
+	foundModules = []string{}
+	err = traverser.ParsePath(rootTfPath, &foundModules)
 	if err != nil {
 		slog.Error(
 			fmt.Sprintf(

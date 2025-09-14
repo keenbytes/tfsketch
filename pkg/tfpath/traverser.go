@@ -106,8 +106,8 @@ func (t *Traverser) WalkPath(tfPath *TfPath, extractModules bool) error {
 }
 
 // ParsePath scans a specified path, reads Terraform files and parses out modules and resources.
-func (t *Traverser) ParsePath(tfPath *TfPath) error {
-	err := t.parseFiles(tfPath)
+func (t *Traverser) ParsePath(tfPath *TfPath, foundModules *[]string) error {
+	err := t.parseFiles(tfPath, foundModules)
 	if err != nil {
 		return fmt.Errorf("error parsing files in %s: %s", tfPath.Path, err.Error())
 	}
@@ -119,7 +119,7 @@ func (t *Traverser) ParsePath(tfPath *TfPath) error {
 			continue
 		}
 
-		err := t.parseFiles(childTfPath)
+		err := t.parseFiles(childTfPath, foundModules)
 		if err != nil {
 			return fmt.Errorf("error parsing files in child %s: %s", tfPath.Path, err.Error())
 		}
@@ -407,7 +407,7 @@ func (t *Traverser) link(rootTfParent *TfPath, childTfPath *TfPath) {
 	}
 }
 
-func (t *Traverser) parseFiles(tfPath *TfPath) error {
+func (t *Traverser) parseFiles(tfPath *TfPath, foundModules *[]string) error {
 	files, err := os.ReadDir(tfPath.Path)
 	if err != nil {
 		return fmt.Errorf("error reading directory %s: %s", tfPath.Path, err.Error())
@@ -420,7 +420,7 @@ func (t *Traverser) parseFiles(tfPath *TfPath) error {
 
 		fileFullPath := filepath.Join(tfPath.Path, file.Name())
 
-		err := t.parseFile(tfPath, file.Name())
+		err := t.parseFile(tfPath, file.Name(), foundModules)
 		if err != nil {
 			slog.Error(fmt.Sprintf("❌ Error parsing file 📄%s: %s", fileFullPath, err.Error()))
 
@@ -433,7 +433,7 @@ func (t *Traverser) parseFiles(tfPath *TfPath) error {
 }
 
 //nolint:funlen
-func (t *Traverser) parseFile(tfPath *TfPath, fileName string) error {
+func (t *Traverser) parseFile(tfPath *TfPath, fileName string, foundModules *[]string) error {
 	filePath := filepath.Join(tfPath.Path, fileName)
 
 	hclFile, diags := t.Parser.ParseHCLFile(filePath)
@@ -501,6 +501,10 @@ func (t *Traverser) parseFile(tfPath *TfPath, fileName string) error {
 			module.FilePath = filePath
 
 			tfPath.Modules[module.Name] = module
+
+			if foundModules != nil {
+				*foundModules = append(*foundModules, module.FieldSource + "@" + module.FieldVersion)
+			}
 
 			slog.Info(
 				fmt.Sprintf(
