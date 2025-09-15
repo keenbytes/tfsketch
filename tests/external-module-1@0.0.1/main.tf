@@ -1,5 +1,14 @@
-resource "type" "root-cache-1" {
-  name = "root-cache-1"
+resource "type" "extmod-1-1" {
+  name = "name-extmod-1-1"
+}
+
+resource "type" "extmod-1-2" {
+  name = "name-extmod-1-2"
+  for_each = var.value6
+}
+
+resource "nevermind" "nevermind-1" {
+  name = "name-nevermind-1"
 }
 
 module "vpc" {
@@ -19,19 +28,4 @@ module "vpc" {
     Terraform = "true"
     Environment = "dev"
   }
-}
-
-module "mod1-1" {
-  source = "external-module-1"
-  version = "0.0.1"
-}
-
-module "mod2-1" {
-  source = "external-module-2"
-  version = "0.0.1"
-}
-
-module "mod2sub1-1" {
-  source = "external-module-2//modules/sub1"
-  version = "0.0.1"
 }

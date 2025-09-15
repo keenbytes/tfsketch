@@ -18,8 +18,6 @@ const (
 	exitCodeErrTraversingOverrides      = 11
 	exitCodeErrParsingContainerPaths    = 21
 	exitCodeErrLinkingContainerPaths    = 22
-	exitCodeErrParsingTerraformPath     = 31
-	exitCodeErrLinkingTerraformPath     = 32
 	exitCodeErrGeneratingChart          = 41
 )
 
