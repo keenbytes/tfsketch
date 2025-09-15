@@ -18,8 +18,8 @@ type Overrides struct {
 }
 
 var (
-	ErrRead      = errors.New("error reading file")
-	ErrUnmarshal = errors.New("error unmarshaling yaml file")
+	ErrRead         = errors.New("error reading file")
+	ErrUnmarshal    = errors.New("error unmarshaling yaml file")
 )
 
 // ReadFromFile takes a YAML file and gets its entries.
@@ -35,4 +35,17 @@ func (o *Overrides) ReadFromFile(path string) error {
 	}
 
 	return nil
+}
+
+// Reset removes all attached external modules
+func (o *Overrides) Reset() {
+	o.ExternalModules = []*remotetolocal.RemoteToLocal{}
+}
+
+// AddExternalModule adds an externalmodule
+func (o *Overrides) AddExternalModule(remote, local string) {
+	o.ExternalModules = append(o.ExternalModules, &remotetolocal.RemoteToLocal{
+		Remote: remote,
+		Local: local,
+	})
 }

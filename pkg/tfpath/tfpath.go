@@ -22,11 +22,17 @@ type TfPath struct {
 	// IsChildModule contains map with names of paths that are modules.
 	IsChildModule map[string]struct{}
 
-	// resources contains tf resources found in the code
+	// Resources contains tf resources found in the code
 	Resources map[string]*TfResource
 
-	// modules contains tf modules found in the code
+	// Modules contains tf modules found in the code
 	Modules map[string]*TfModule
+
+	// Walked indicates whether a path has been "walked" already
+	Walked bool
+
+	// Parsed indicates whether a path has been "parsed" already
+	Parsed bool
 }
 
 // NewTfPath returns new TfPath instance containing name and a path.

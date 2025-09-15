@@ -10,3 +10,6 @@ mmdc -i tests/02-local-modules.mmd -o tests/02-local-modules.svg --configFile=te
 
 ./tfsketch gen -t '^nevermind|type$' -m -o tests/external-modules.yml tests/03-external-modules/ tests/03-external-modules.mmd
 mmdc -i tests/03-external-modules.mmd -o tests/03-external-modules.svg --configFile=tests/config.json
+
+./tfsketch gen -a name,id -c tmp/cache -o tests/external-modules.yml tests/04-cache/ tests/04-cache.mmd
+mmdc -i tests/04-cache.mmd -o tests/04-cache.svg --configFile=tests/config.json

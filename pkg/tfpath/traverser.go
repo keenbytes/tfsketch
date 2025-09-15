@@ -45,12 +45,14 @@ type Traverser struct {
 	Parser *hclparse.Parser
 	// HCLBodySchema contains a schema for parsing HCL. It defines what attributes should be extracted.
 	HCLBodySchema *hcl.BodySchema
+	// Cache object manages external downloaded modules
+	Cache *Cache
 }
 
 // NewTraverser returns new Traverser object.
 func NewTraverser(
 	container *Container,
-	pathIncludeRegexp, pathExcludeRegexp, typeRegexp, nameRegexp, displayAttributes string,
+	pathIncludeRegexp, pathExcludeRegexp, typeRegexp, nameRegexp, displayAttributes string, cache *Cache,
 ) *Traverser {
 	traverser := &Traverser{
 		Parser:             hclparse.NewParser(),
@@ -61,6 +63,7 @@ func NewTraverser(
 		RegexpExcludePath:  regexp.MustCompile(pathExcludeRegexp),
 		RegexpResourceType: regexp.MustCompile(typeRegexp),
 		RegexpResourceName: regexp.MustCompile(nameRegexp),
+		Cache:              cache,
 	}
 
 	if displayAttributes != "" {
@@ -77,23 +80,27 @@ func NewTraverser(
 
 // WalkPath walks a specified path for subdirectories.
 func (t *Traverser) WalkPath(tfPath *TfPath, extractModules bool) error {
+	tfPath.Walked = true
+
 	newContainerPaths, err := t.walk(tfPath, extractModules)
 	if err != nil {
 		return fmt.Errorf("error walking terraform path %s: %s", tfPath.Path, err.Error())
 	}
 
-	if extractModules && len(newContainerPaths) > 0 {
-		for _, newPath := range newContainerPaths {
-			newTfPath := t.Container.Paths[newPath]
+	if !extractModules || len(newContainerPaths) == 0 {
+		return nil
+	}
 
-			_, err := t.walk(newTfPath, false)
-			if err != nil {
-				return fmt.Errorf(
-					"error walking terraform path %s: %s",
-					newTfPath.Path,
-					err.Error(),
-				)
-			}
+	for _, newPath := range newContainerPaths {
+		newTfPath := t.Container.Paths[newPath]
+
+		_, err := t.walk(newTfPath, false)
+		if err != nil {
+			return fmt.Errorf(
+				"error walking terraform path %s: %s",
+				newTfPath.Path,
+				err.Error(),
+			)
 		}
 	}
 
@@ -101,8 +108,10 @@ func (t *Traverser) WalkPath(tfPath *TfPath, extractModules bool) error {
 }
 
 // ParsePath scans a specified path, reads Terraform files and parses out modules and resources.
-func (t *Traverser) ParsePath(tfPath *TfPath) error {
-	err := t.parseFiles(tfPath)
+func (t *Traverser) ParsePath(tfPath *TfPath, foundModules *[]string) error {
+	tfPath.Parsed = true
+
+	err := t.parseFiles(tfPath, foundModules)
 	if err != nil {
 		return fmt.Errorf("error parsing files in %s: %s", tfPath.Path, err.Error())
 	}
@@ -114,7 +123,7 @@ func (t *Traverser) ParsePath(tfPath *TfPath) error {
 			continue
 		}
 
-		err := t.parseFiles(childTfPath)
+		err := t.parseFiles(childTfPath, foundModules)
 		if err != nil {
 			return fmt.Errorf("error parsing files in child %s: %s", tfPath.Path, err.Error())
 		}
@@ -402,7 +411,7 @@ func (t *Traverser) link(rootTfParent *TfPath, childTfPath *TfPath) {
 	}
 }
 
-func (t *Traverser) parseFiles(tfPath *TfPath) error {
+func (t *Traverser) parseFiles(tfPath *TfPath, foundModules *[]string) error {
 	files, err := os.ReadDir(tfPath.Path)
 	if err != nil {
 		return fmt.Errorf("error reading directory %s: %s", tfPath.Path, err.Error())
@@ -415,7 +424,7 @@ func (t *Traverser) parseFiles(tfPath *TfPath) error {
 
 		fileFullPath := filepath.Join(tfPath.Path, file.Name())
 
-		err := t.parseFile(tfPath, file.Name())
+		err := t.parseFile(tfPath, file.Name(), foundModules)
 		if err != nil {
 			slog.Error(fmt.Sprintf("❌ Error parsing file 📄%s: %s", fileFullPath, err.Error()))
 
@@ -428,7 +437,7 @@ func (t *Traverser) parseFiles(tfPath *TfPath) error {
 }
 
 //nolint:funlen
-func (t *Traverser) parseFile(tfPath *TfPath, fileName string) error {
+func (t *Traverser) parseFile(tfPath *TfPath, fileName string, foundModules *[]string) error {
 	filePath := filepath.Join(tfPath.Path, fileName)
 
 	hclFile, diags := t.Parser.ParseHCLFile(filePath)
@@ -496,6 +505,10 @@ func (t *Traverser) parseFile(tfPath *TfPath, fileName string) error {
 			module.FilePath = filePath
 
 			tfPath.Modules[module.Name] = module
+
+			if foundModules != nil {
+				*foundModules = append(*foundModules, module.FieldSource + "@" + module.FieldVersion)
+			}
 
 			slog.Info(
 				fmt.Sprintf(
