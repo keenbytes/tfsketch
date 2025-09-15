@@ -80,6 +80,8 @@ func NewTraverser(
 
 // WalkPath walks a specified path for subdirectories.
 func (t *Traverser) WalkPath(tfPath *TfPath, extractModules bool) error {
+	tfPath.Walked = true
+
 	newContainerPaths, err := t.walk(tfPath, extractModules)
 	if err != nil {
 		return fmt.Errorf("error walking terraform path %s: %s", tfPath.Path, err.Error())
@@ -107,6 +109,8 @@ func (t *Traverser) WalkPath(tfPath *TfPath, extractModules bool) error {
 
 // ParsePath scans a specified path, reads Terraform files and parses out modules and resources.
 func (t *Traverser) ParsePath(tfPath *TfPath, foundModules *[]string) error {
+	tfPath.Parsed = true
+
 	err := t.parseFiles(tfPath, foundModules)
 	if err != nil {
 		return fmt.Errorf("error parsing files in %s: %s", tfPath.Path, err.Error())

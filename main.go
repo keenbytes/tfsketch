@@ -169,38 +169,11 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 		if err != nil {
 			return exitCodeErrTraversingOverrides
 		}
-	}
 
-	// as of now, use paths in container
-	foundModules := []string{}
-	err = container.ParsePaths(traverser, &foundModules)
-	if err != nil {
-		return exitCodeErrParsingContainerPaths
-	}
-
-	if cache != nil && len(foundModules) > 0 {
-		for _, containerPathKey := range foundModules {
-			_, exists := container.Paths[containerPathKey]
-			if exists {
-				continue
-			}
-
-			_, err := cache.DownloadModule(containerPathKey)
-			if err != nil {
-				slog.Error(
-					fmt.Sprintf(
-						"❌ Error downloading module (📦%s): %s",
-						containerPathKey,
-						err.Error(),
-					),
-				)
-			}
-		}
-	}
-
-	err = container.LinkPaths(traverser)
-	if err != nil {
-		return exitCodeErrLinkingContainerPaths
+		externalModulesNum := len(overrides.ExternalModules)
+		slog.Info(
+			fmt.Sprintf("🔸 External modules number in overrides file: %d", externalModulesNum),
+		)
 	}
 
 	// path
@@ -221,33 +194,15 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 		return exitCodeErrTraversingOverrides
 	}
 
-	foundModules = []string{}
-	err = traverser.ParsePath(rootTfPath, &foundModules)
+	// as of now, use paths in container
+	err = container.ParsePaths(traverser, cache, 1)
 	if err != nil {
-		slog.Error(
-			fmt.Sprintf(
-				"❌ Error parsing terraform path 📁%s (%s) : %s",
-				rootTfPath.Path,
-				rootTfPathName,
-				err.Error(),
-			),
-		)
-
-		return exitCodeErrParsingTerraformPath
+		return exitCodeErrParsingContainerPaths
 	}
 
-	err = traverser.LinkPath(rootTfPath)
+	err = container.LinkPaths(traverser)
 	if err != nil {
-		slog.Error(
-			fmt.Sprintf(
-				"❌ Error linking local modules in terraform path 📁%s (%s) : %s",
-				rootTfPath.Path,
-				rootTfPathName,
-				err.Error(),
-			),
-		)
-
-		return exitCodeErrLinkingTerraformPath
+		return exitCodeErrLinkingContainerPaths
 	}
 
 	flowchart := chart.NewMermaidFlowChart(onlyRoot, includeFilenames, minify, module)

@@ -46,6 +46,7 @@ Check below help message for `gen` command:
     
     Optional flags: 
 
+    -c,  --cache DIR                            Path to directory where modules will be downloaded and cached
     -d,  --debug                                Enable debug mode
     -a,  --display-attributes ATTR1,ATTR2,...   Comma-separated resource attributes; the first found is used as the chart’s display name
     -f,  --include-filenames                    Display source filenames on the diagram
