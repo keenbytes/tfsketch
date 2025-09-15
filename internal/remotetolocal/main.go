@@ -1,11 +1,25 @@
-// Package remotetolocal contains a struct used to define mapping of a remote source to local path.
+// Package remotetolocal provides a data model for mapping a remote resource
+// (identified by a URL or a regular‑expression pattern) to a corresponding
+// local filesystem path.
 package remotetolocal
 
-// RemoteToLocal represents a mapping from a remote resource to a local one.
+// RemoteToLocal defines a single mapping from a remote source to a local
+// destination.
 type RemoteToLocal struct {
-	// Remote is any remote URL in format url@version[|internal_path]
+	// Remote specifies the remote identifier. It can be either:
+	//
+	//   • A concrete URL with an optional version suffix, e.g. "repo.git@v1.2".
+	//   • A regular‑expression pattern that must begin with '^'. When a
+	//     regexp is used, any captured groups (parenthesized sub‑expressions)
+	//     become placeholders that can be referenced in the Local field as
+	//     {1}, {2}, … .
 	Remote string `yaml:"remote"`
 
-	// Local is a local directory containing the remote resource.
+	// Local is the local directory that will hold the fetched remote resource.
+	//
+	// If Remote is a regular expression, Local acts as a template. The captured
+	// groups from Remote can be interpolated using the same {1}, {2}, … syntax.
+	// For example, with Remote="^github.com/(.+)/(.+)$" and Local="/src/{1}/{2}",
+	// a match for "github.com/foo/bar" would resolve to "/src/foo/bar".
 	Local string `yaml:"local"`
 }
