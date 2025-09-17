@@ -21,5 +21,9 @@ type RemoteToLocal struct {
 	// groups from Remote can be interpolated using the same {1}, {2}, … syntax.
 	// For example, with Remote="^github.com/(.+)/(.+)$" and Local="/src/{1}/{2}",
 	// a match for "github.com/foo/bar" would resolve to "/src/foo/bar".
-	Local string `yaml:"local"`
+	Local string `yaml:"local,omitempty"`
+
+	// Cache is a source that requires downloading (for example using git) to
+	// cache directory.  Cache has precedence over Local.
+	Cache string `yaml:"cache,omitempty"`
 }

@@ -54,7 +54,7 @@ func (c *Cache) WasDownloaded(sourceVersion string) bool {
 	return exists
 }
 
-func (c *Cache) DownloadModule(sourceVersion string) (string, error) {
+func (c *Cache) DownloadModule(sourceVersion string, overrideUrl string) (string, error) {
 	// mark module as one that has already been downloaded
 	c.downloaded[sourceVersion] = struct{}{}
 
@@ -70,7 +70,7 @@ func (c *Cache) DownloadModule(sourceVersion string) (string, error) {
 	}
 
 	var source, version string
-	split := strings.SplitN(sourceVersion, "@", 1)
+	split := strings.SplitN(sourceVersion, "@", 2)
 	if len(split) == 2 {
 		source = split[0]
 		version = split[1]
@@ -97,34 +97,41 @@ func (c *Cache) DownloadModule(sourceVersion string) (string, error) {
 		),
 	)
 
-	var url string
-	if version == "" {
-		// http.Get will follow redirect
-		url = fmt.Sprintf("https://registry.terraform.io/v1/modules/%s/download", source)
-	} else {
-		url = fmt.Sprintf("https://registry.terraform.io/v1/modules/%s/%s/download", source, version)
+	var sourceGitRepository string
+	if overrideUrl != "" {
+		sourceGitRepository = overrideUrl
 	}
 
-	resp, err := http.Get(url)
-	if err != nil {
-		slog.Error(fmt.Sprintf("❌ Error downloading module: %s", err.Error()))
-
-		return "", fmt.Errorf("%w: %w", ErrDownloadingModule, err)
-	}
-
-	defer resp.Body.Close()
-
-	sourceGitRepository := resp.Header.Get(headerWithSource)
 	if sourceGitRepository == "" {
-		slog.Debug(
-			fmt.Sprintf(
-				"🚫 '%s' header not found in response from %s",
-				headerWithSource,
-				url,
-			),
-		)
+		var url string
+		if version == "" {
+			// http.Get will follow redirect
+			url = fmt.Sprintf("https://registry.terraform.io/v1/modules/%s/download", source)
+		} else {
+			url = fmt.Sprintf("https://registry.terraform.io/v1/modules/%s/%s/download", source, version)
+		}
 
-		return "", nil
+		resp, err := http.Get(url)
+		if err != nil {
+			slog.Error(fmt.Sprintf("❌ Error downloading module: %s", err.Error()))
+
+			return "", fmt.Errorf("%w: %w", ErrDownloadingModule, err)
+		}
+
+		defer resp.Body.Close()
+
+		sourceGitRepository = resp.Header.Get(headerWithSource)
+		if sourceGitRepository == "" {
+			slog.Debug(
+				fmt.Sprintf(
+					"🚫 '%s' header not found in response from %s",
+					headerWithSource,
+					url,
+				),
+			)
+
+			return "", nil
+		}
 	}
 
 	if !c.regexpGit.MatchString(sourceGitRepository) {

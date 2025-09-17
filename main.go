@@ -163,7 +163,7 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 			return exitCodeErrReadingOverridesFromFile
 		}
 
-		err = container.WalkOverrides(overrides, traverser)
+		err = container.WalkOverrides(overrides, traverser, cache)
 		if err != nil {
 			return exitCodeErrTraversingOverrides
 		}

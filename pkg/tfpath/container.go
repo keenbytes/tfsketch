@@ -36,6 +36,10 @@ type Override struct {
 
 	// Local represents a template for a local directory when module or path matches Remote.
 	Local string
+
+	// Cache is a source URL for the module that it needs to be downloaded from. It takes
+	// precedence before Local.
+	Cache string
 }
 
 // NewContainer returns a new Container.
@@ -56,29 +60,77 @@ func (c *Container) AddPath(name string, tfPath *TfPath) {
 }
 
 // WalkOverrides runs traverser's WalkPath on each entry from Override object
-func (c *Container) WalkOverrides(overrides *overrides.Overrides, traverser *Traverser) error {	
+func (c *Container) WalkOverrides(overrides *overrides.Overrides, traverser *Traverser, cache *Cache) error {	
 	for _, externalModule := range overrides.ExternalModules {
+		remoteField := strings.TrimSpace(externalModule.Remote)
+		localField := strings.TrimSpace(externalModule.Local)
+		cacheField := strings.TrimSpace(externalModule.Cache)
+
+		// Either local or cache must be present
+		if remoteField == "" || (localField == "" && cacheField == "") {
+			continue
+		}
+
 		// Remote starting with ^ are considered regular expression and modules sources should be matched
 		// against those
-		if strings.HasPrefix(externalModule.Remote, "^") {
-			_, exists := c.Overrides[externalModule.Remote]
+		if strings.HasPrefix(remoteField, "^") {
+			_, exists := c.Overrides[remoteField]
 			if exists {
 				continue
 			}
 
 			// add these regular expressions to the container
-			c.Overrides[externalModule.Remote] = &Override{
-				Remote: regexp.MustCompile(externalModule.Remote),
-				Local: externalModule.Local,
+			c.Overrides[remoteField] = &Override{
+				Remote: regexp.MustCompile(remoteField),
+				Local: localField,
+				Cache: cacheField,
 			}
 
 			continue
 		}
 
-		tfPath := NewTfPath(externalModule.Local, externalModule.Remote)
+		// If cache is passed then we need to try to download the module first and then pass its local path
+		if cacheField != "" && cache != nil {
+			// If there was an attempt to download this module already then try to get it
+			// from the container.
+			if cache.WasDownloaded(remoteField) {
+				localTfPath, exists := c.Paths[remoteField]
+				if !exists {
+					continue
+				}
+
+				localField = localTfPath.Path
+			} else {
+				// Download the module source code and save it in the cache
+				downloadedPath, err := cache.DownloadModule(remoteField, cacheField)
+				if err != nil {
+					slog.Error(
+						fmt.Sprintf(
+							"❌ Error downloading module (📦%s): %s",
+							remoteField,
+							err.Error(),
+						),
+					)
+
+					continue
+				}
+
+				if downloadedPath == "" {
+					continue
+				}
+
+				localField = downloadedPath
+			}
+		}
+
+		if localField == "" {
+			continue
+		}
+
+		tfPath := NewTfPath(localField, remoteField)
 		c.AddPath(tfPath.TraverseName, tfPath)
 
-		isSubModule := c.isExternalModuleASubModule(externalModule.Remote)
+		isSubModule := c.isExternalModuleASubModule(remoteField)
 
 		if tfPath.Walked {
 			continue
@@ -89,7 +141,7 @@ func (c *Container) WalkOverrides(overrides *overrides.Overrides, traverser *Tra
 			slog.Error(
 				fmt.Sprintf(
 					"❌ Error walking dirs in overrides local path 📁%s: %s",
-					externalModule.Local,
+					localField,
 					err.Error(),
 				),
 			)
@@ -143,13 +195,15 @@ func (c *Container) ParsePaths(traverser *Traverser, cache *Cache, depth int) er
 				continue
 			}
 
-			localPath := c.MatchesOverride(containerPathKey)
+			var localPath, cacheUrl string
+
+			localPath, cacheUrl = c.MatchesOverride(containerPathKey)
 			if localPath != "" {
 				overrides.AddExternalModule(containerPathKey, localPath)
 				continue
 			}
 
-			downloadedPath, err := cache.DownloadModule(containerPathKey)
+			downloadedPath, err := cache.DownloadModule(containerPathKey, cacheUrl)
 			if err != nil {
 				slog.Error(
 					fmt.Sprintf(
@@ -170,7 +224,7 @@ func (c *Container) ParsePaths(traverser *Traverser, cache *Cache, depth int) er
 		}
 
 		if len(overrides.ExternalModules) > 0 {
-			err := c.WalkOverrides(overrides, traverser)
+			err := c.WalkOverrides(overrides, traverser, cache)
 			if err != nil {
 				return fmt.Errorf("%w: %w", ErrWalkingOverrides, err)
 			}
@@ -207,7 +261,7 @@ func (c *Container) LinkPaths(traverser *Traverser) error {
 }
 
 // MatchesOverride checks if specific module/path is found in overrides.
-func (c *Container) MatchesOverride(containerPathKey string) string {
+func (c *Container) MatchesOverride(containerPathKey string) (string, string) {
 	for regexpString, override := range c.Overrides {
 		matches := override.Remote.FindStringSubmatch(containerPathKey)
 		if len(matches) == 0 {
@@ -215,6 +269,29 @@ func (c *Container) MatchesOverride(containerPathKey string) string {
 		}
 
 		localPath := override.Local
+		cacheUrl := override.Cache
+
+		if cacheUrl != "" {
+			for i, sub := range matches {
+				cacheUrl = strings.ReplaceAll(cacheUrl, fmt.Sprintf("{%d}", i), sub)
+			}
+
+			slog.Debug(
+				fmt.Sprintf(
+					"🧩 Module 📦%s matches override regexp 📦%s and points to source 📁%s",
+					containerPathKey,
+					regexpString,
+					cacheUrl,
+				),
+			)
+
+			return "", cacheUrl
+		}
+
+		if localPath == "" {
+			return "", ""
+		}
+
 		for i, sub := range matches {
 			localPath = strings.ReplaceAll(localPath, fmt.Sprintf("{%d}", i), sub)
 		}
@@ -228,10 +305,10 @@ func (c *Container) MatchesOverride(containerPathKey string) string {
 			),
 		)
 
-		return localPath
+		return localPath, ""
 	}
 
-	return ""
+	return "", ""
 }
 
 func (c *Container) isExternalModuleASubModule(module string) bool {
