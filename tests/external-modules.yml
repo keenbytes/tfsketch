@@ -5,3 +5,7 @@ externalModules:
 #  local: tests/external-module-2
 - remote: ^external-module-([0-9]+)@([a-zA-Z0-9\.\-]+)$
   local: tests/external-module-{1}@{2}
+- remote: terraform-aws-modules/s3-bucket/aws@
+  cache: git::https://github.com/terraform-aws-modules/terraform-aws-s3-bucket.git?ref=main
+- remote: ^terraform-aws-modules/(elasticache)/aws@$
+  cache: git::https://github.com/terraform-aws-modules/terraform-aws-{1}.git?ref=v1.8.0

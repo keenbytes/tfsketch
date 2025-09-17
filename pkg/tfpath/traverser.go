@@ -492,7 +492,7 @@ func (t *Traverser) parseFile(tfPath *TfPath, fileName string, foundModules *[]s
 			if module.FieldSource == "../" {
 				slog.Debug(
 					fmt.Sprintf(
-						"💭 Ignoring module %s with source '../' in 📄%s",
+						"🚫 Ignoring module %s with source '../' in 📄%s",
 						module.Name,
 						filePath,
 					),
@@ -501,19 +501,34 @@ func (t *Traverser) parseFile(tfPath *TfPath, fileName string, foundModules *[]s
 				continue
 			}
 
+			foundModuleSource := module.FieldSource
+			foundModuleVersion := module.FieldVersion
+
+			// If source field targets a module then we need to cut it out
+			if strings.Contains(module.FieldSource, "//modules") {
+				sourceSplit := strings.Split(module.FieldSource, "//")
+				if sourceSplit[0] == "" {
+					continue
+				}
+
+				foundModuleSource = sourceSplit[0]
+			}
+
 			module.FileName = fileName
 			module.FilePath = filePath
 
 			tfPath.Modules[module.Name] = module
 
 			if foundModules != nil {
-				*foundModules = append(*foundModules, module.FieldSource + "@" + module.FieldVersion)
+				*foundModules = append(*foundModules, foundModuleSource + "@" + foundModuleVersion)
 			}
 
 			slog.Info(
 				fmt.Sprintf(
-					"🔵 Found module %s in file 📄%s (📦%s)",
+					"🔵 Found module %s [%s@%s] in file 📄%s (📦%s)",
 					module.Name,
+					module.FieldSource,
+					module.FieldVersion,
 					filePath,
 					tfPath.TraverseName,
 				),
