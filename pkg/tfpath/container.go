@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/keenbytes/tfsketch/internal/overrides"
+	"gopkg.gen64.pl/tfsketch/internal/overrides"
 )
 
 var (
@@ -45,7 +45,7 @@ type Override struct {
 // NewContainer returns a new Container.
 func NewContainer() *Container {
 	container := &Container{
-		Paths: map[string]*TfPath{},
+		Paths:     map[string]*TfPath{},
 		Overrides: map[string]*Override{},
 	}
 
@@ -60,7 +60,7 @@ func (c *Container) AddPath(name string, tfPath *TfPath) {
 }
 
 // WalkOverrides runs traverser's WalkPath on each entry from Override object
-func (c *Container) WalkOverrides(overrides *overrides.Overrides, traverser *Traverser, cache *Cache) error {	
+func (c *Container) WalkOverrides(overrides *overrides.Overrides, traverser *Traverser, cache *Cache) error {
 	for _, externalModule := range overrides.ExternalModules {
 		remoteField := strings.TrimSpace(externalModule.Remote)
 		localField := strings.TrimSpace(externalModule.Local)
@@ -82,8 +82,8 @@ func (c *Container) WalkOverrides(overrides *overrides.Overrides, traverser *Tra
 			// add these regular expressions to the container
 			c.Overrides[remoteField] = &Override{
 				Remote: regexp.MustCompile(remoteField),
-				Local: localField,
-				Cache: cacheField,
+				Local:  localField,
+				Cache:  cacheField,
 			}
 
 			continue
@@ -181,7 +181,7 @@ func (c *Container) ParsePaths(traverser *Traverser, cache *Cache, depth int) er
 			return fmt.Errorf("%w: %w", ErrParsingContainerPaths, err)
 		}
 	}
-	
+
 	if cache != nil && len(foundModules) > 0 {
 		overrides := &overrides.Overrides{}
 

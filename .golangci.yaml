@@ -15,8 +15,8 @@ linters:
         main:
           allow:
             - $gostd
-            - github.com/keenbytes/tfsketch
-            - github.com/keenbytes/broccli/v3
+            - gopkg.gen64.pl/tfsketch
+            - gopkg.gen64.pl/broccli/v3
             - gopkg.in/yaml.v2
             - github.com/hashicorp/hcl/v2
             - github.com/hashicorp/hcl/v2/hclparse

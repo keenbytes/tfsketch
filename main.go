@@ -7,10 +7,10 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/keenbytes/broccli/v3"
-	"github.com/keenbytes/tfsketch/internal/overrides"
-	"github.com/keenbytes/tfsketch/pkg/chart"
-	"github.com/keenbytes/tfsketch/pkg/tfpath"
+	"gopkg.gen64.pl/broccli/v3"
+	"gopkg.gen64.pl/tfsketch/internal/overrides"
+	"gopkg.gen64.pl/tfsketch/pkg/chart"
+	"gopkg.gen64.pl/tfsketch/pkg/tfpath"
 )
 
 const (

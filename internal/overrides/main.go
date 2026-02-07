@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/keenbytes/tfsketch/internal/remotetolocal"
+	"gopkg.gen64.pl/tfsketch/internal/remotetolocal"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -18,8 +18,8 @@ type Overrides struct {
 }
 
 var (
-	ErrRead         = errors.New("error reading file")
-	ErrUnmarshal    = errors.New("error unmarshaling yaml file")
+	ErrRead      = errors.New("error reading file")
+	ErrUnmarshal = errors.New("error unmarshaling yaml file")
 )
 
 // ReadFromFile takes a YAML file and gets its entries.
@@ -46,6 +46,6 @@ func (o *Overrides) Reset() {
 func (o *Overrides) AddExternalModule(remote, local string) {
 	o.ExternalModules = append(o.ExternalModules, &remotetolocal.RemoteToLocal{
 		Remote: remote,
-		Local: local,
+		Local:  local,
 	})
 }

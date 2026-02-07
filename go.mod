@@ -1,11 +1,11 @@
-module github.com/keenbytes/tfsketch
+module gopkg.gen64.pl/tfsketch
 
-go 1.24.5
+go 1.25.0
 
 require (
 	github.com/hashicorp/hcl/v2 v2.24.0
-	github.com/keenbytes/broccli/v3 v3.1.0
-	github.com/zclconf/go-cty v1.16.3
+	github.com/zclconf/go-cty v1.17.0
+	gopkg.gen64.pl/broccli/v3 v3.2.4
 	gopkg.in/yaml.v2 v2.4.0
 )
 

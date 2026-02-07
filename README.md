@@ -1,7 +1,5 @@
 # tfsketch
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/keenbytes/tfsketch)](https://goreportcard.com/report/github.com/keenbytes/tfsketch)
-
 ![tfsketch](tfsketch.png "tfsketch")
 
 A lightweight tool that scans Terraform code for a specified resource type (e.g. `aws_iam_role`) and generates a Mermaid flowchart, along with a summary JSON file of the modules found. It supports scanning modules and nested sub-modules, as well as mapping external modules to local paths via a YAML file (e.g. a cloned Git repository). By default, it scans only one level of sub-directories, treating any `modules` directory as containing externally accessible sub-modules.
