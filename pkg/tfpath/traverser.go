@@ -3,7 +3,6 @@ package tfpath
 import (
 	"fmt"
 	"io/fs"
-	"log"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -17,91 +16,102 @@ import (
 )
 
 const (
-	dirTypeNormal = iota
-	dirTypeModule
-	dirTypeIgnore
-)
-
-const (
-	tfExtension = ".tf"
+	tfExtension             = ".tf"
 	linkModulesMaxRecursion = 5
+	labelNoFieldName        = "no-attr!"
+	labelFieldNameEmpty     = "empty!"
 )
 
-var (
-	tfResourceDefinition = &hcl.BodySchema{
-		Attributes: []hcl.AttributeSchema{
-			{
-				Name:     "name",
-				Required: false,
-			},
-			{
-				Name:     "id",
-				Required: false,
-			},
-			{
-				Name:     "name_prefix",
-				Required: false,
-			},
-			{
-				Name:     "for_each",
-				Required: false,
-			},
-		},
-	}
-	tfModuleDefinition = &hcl.BodySchema{
-		Attributes: []hcl.AttributeSchema{
-			{
-				Name:     "source",
-				Required: false,
-			},
-			{
-				Name:     "version",
-				Required: false,
-			},
-		},
-	}
-)
-
+// Traverser represents functionality for scanning a Terraform directory.
 type Traverser struct {
+	// RegexpIgnoreDir is a regular expression used to check if directory name should be ignored
 	RegexpIgnoreDir *regexp.Regexp
+	// RegexpModuleDir is a regular expression used to check if directory name is a module
 	RegexpModuleDir *regexp.Regexp
+	// Container contains all the modules that have been found so far
 	Container *Container
-	ResourceType string
+	// RegexpIncludePath is used to include paths
+	RegexpIncludePath *regexp.Regexp
+	// RegexpExcludePath is used to exclude paths
+	RegexpExcludePath *regexp.Regexp
+	// RegexpResourceType is type of the resource to search, eg. ^aws_iam_role$
+	RegexpResourceType *regexp.Regexp
+	// RegexpResourceName is type of the resource to search, eg. ^this$
+	RegexpResourceName *regexp.Regexp
+	// DisplayAttributes contains is comma-separated resource attributes where the first found is used as the
+	// chart’s display name
+	DisplayAttributes []string
+	// Parser is an HCL parser
 	Parser *hclparse.Parser
+	// HCLBodySchema contains a schema for parsing HCL. It defines what attributes should be extracted.
+	HCLBodySchema *hcl.BodySchema
+	// Cache object manages external downloaded modules
+	Cache *Cache
 }
 
-func NewTraverser(container *Container, resourceType string) *Traverser{
+// NewTraverser returns new Traverser object.
+func NewTraverser(
+	container *Container,
+	pathIncludeRegexp, pathExcludeRegexp, typeRegexp, nameRegexp, displayAttributes string, cache *Cache,
+) *Traverser {
 	traverser := &Traverser{
-		Parser: hclparse.NewParser(),
-		RegexpIgnoreDir: regexp.MustCompile(`^(example[s]*|test[s]*|\..*)$`),
-		RegexpModuleDir: regexp.MustCompile(`^modules$`),
-		Container: container,
-		ResourceType: resourceType,
+		Parser:             hclparse.NewParser(),
+		RegexpIgnoreDir:    regexp.MustCompile(`^(example[s]*|test[s]*|\..*)$`),
+		RegexpModuleDir:    regexp.MustCompile(`^modules$`),
+		Container:          container,
+		RegexpIncludePath:  regexp.MustCompile(pathIncludeRegexp),
+		RegexpExcludePath:  regexp.MustCompile(pathExcludeRegexp),
+		RegexpResourceType: regexp.MustCompile(typeRegexp),
+		RegexpResourceName: regexp.MustCompile(nameRegexp),
+		Cache:              cache,
 	}
+
+	if displayAttributes != "" {
+		traverser.DisplayAttributes = strings.Split(displayAttributes, ",")
+	} else {
+		traverser.DisplayAttributes = []string{"name", "id", "name_prefix"}
+	}
+
+	hclBodySchema := NewHCLBodySchema(traverser.DisplayAttributes)
+	traverser.HCLBodySchema = hclBodySchema
 
 	return traverser
 }
 
+// WalkPath walks a specified path for subdirectories.
 func (t *Traverser) WalkPath(tfPath *TfPath, extractModules bool) error {
+	tfPath.Walked = true
+
 	newContainerPaths, err := t.walk(tfPath, extractModules)
 	if err != nil {
 		return fmt.Errorf("error walking terraform path %s: %s", tfPath.Path, err.Error())
 	}
-	if extractModules && len(newContainerPaths) > 0 {
-		for _, newPath := range newContainerPaths {
-			newTfPath := t.Container.Paths[newPath]
-			_, err := t.walk(newTfPath, false)
-			if err != nil {
-				return fmt.Errorf("error walking terraform path %s: %s", newTfPath.Path, err.Error())
-			}
+
+	if !extractModules || len(newContainerPaths) == 0 {
+		return nil
+	}
+
+	for _, newPath := range newContainerPaths {
+		newTfPath := t.Container.Paths[newPath]
+
+		_, err := t.walk(newTfPath, false)
+		if err != nil {
+			return fmt.Errorf(
+				"error walking terraform path %s: %s",
+				newTfPath.Path,
+				err.Error(),
+			)
 		}
 	}
 
 	return nil
 }
 
-func (t *Traverser) ParsePath(tfPath *TfPath) error {
-	err := t.parseFiles(tfPath)
+// ParsePath scans a specified path, reads Terraform files and parses out modules and resources.
+func (t *Traverser) ParsePath(tfPath *TfPath, foundModules *[]string) error {
+	tfPath.Parsed = true
+
+	err := t.parseFiles(tfPath, foundModules)
 	if err != nil {
 		return fmt.Errorf("error parsing files in %s: %s", tfPath.Path, err.Error())
 	}
@@ -113,7 +123,7 @@ func (t *Traverser) ParsePath(tfPath *TfPath) error {
 			continue
 		}
 
-		err := t.parseFiles(childTfPath)
+		err := t.parseFiles(childTfPath, foundModules)
 		if err != nil {
 			return fmt.Errorf("error parsing files in child %s: %s", tfPath.Path, err.Error())
 		}
@@ -122,118 +132,186 @@ func (t *Traverser) ParsePath(tfPath *TfPath) error {
 	return nil
 }
 
+// LinkPath scans modules in a specified path and links them to already existing modules in the container,
+// eg. external modules.
 func (t *Traverser) LinkPath(tfPath *TfPath) error {
-	err := t.link(tfPath, tfPath)
-	if err != nil {
-		return fmt.Errorf("error linking modules in terraform path %s: %s", tfPath.Path, err.Error())
-	}
+	t.link(tfPath, tfPath)
 
 	for _, childTfPath := range tfPath.Children {
-		err := t.link(tfPath, childTfPath)
-		if err != nil {
-			return fmt.Errorf("error linking modules in terraform path %s: %s", childTfPath.Path, err.Error())
-		}
+		t.link(tfPath, childTfPath)
 	}
 
 	return nil
 }
 
+//nolint:funlen
 func (t *Traverser) walk(tfPath *TfPath, extractModules bool) ([]string, error) {
 	rootPath := tfPath.Path
 
 	newContainerPaths := []string{}
 
-	errwd := filepath.WalkDir(rootPath, func(currentPath string, dirEntry fs.DirEntry, err error) error {
-		if err != nil {
-			return fmt.Errorf("error walking directory %s: %s", currentPath, err.Error())
-		}
-
-		// ignore files
-		if !dirEntry.IsDir() {
-			return nil
-		}
-
-		currentRelPath, _ := filepath.Rel(rootPath, currentPath)
-		currentParentDir := filepath.Dir(currentPath)
-		currentParentDirName := filepath.Base(currentParentDir)
-		currentDirName := filepath.Base(currentPath)
-
-		// if directory is called 'tests' or 'examples' then do not walk the dir
-		if t.RegexpIgnoreDir.MatchString(currentDirName) {
-			slog.Debug(fmt.Sprintf("🚫 Skipped path: 📁%s [📁%s]", currentPath, currentRelPath))
-
-			return fs.SkipDir
-		}
-
-		// if subdirectory of 'modules' directory then add it to container and skip further directories
-		if extractModules && t.RegexpModuleDir.MatchString(currentParentDirName) && currentRelPath != "." {
-			traverseNameSplit := strings.Split(tfPath.TraverseName, "@")
-			newTraverseName := traverseNameSplit[0] + "//" + currentRelPath
-			if len(traverseNameSplit) == 2 {
-				newTraverseName += "@" + traverseNameSplit[1]
+	errwd := filepath.WalkDir(
+		rootPath,
+		func(currentPath string, dirEntry fs.DirEntry, err error) error {
+			if err != nil {
+				return fmt.Errorf("error walking directory %s: %s", currentPath, err.Error())
+			}
+			// ignore files
+			if !dirEntry.IsDir() {
+				return nil
 			}
 
-			newTfPath := NewTfPath(currentPath, newTraverseName)
-			newTfPath.RelPath = "."
-			t.Container.AddPath(newTfPath.TraverseName, newTfPath)
-			newContainerPaths = append(newContainerPaths, newTfPath.TraverseName)
+			currentRelPath, _ := filepath.Rel(rootPath, currentPath)
+			currentParentDir := filepath.Dir(currentPath)
+			currentParentDirName := filepath.Base(currentParentDir)
+			currentDirName := filepath.Base(currentPath)
 
-			slog.Debug(fmt.Sprintf("🚫 Skipped walking paths in: 📁%s [📁%s]", currentPath, currentRelPath))
+			// Include relative path based on a regular expression
+			if !t.RegexpIncludePath.MatchString(currentRelPath) {
+				slog.Debug(fmt.Sprintf("🚫 Skipped path: 📁%s [📁%s]", currentPath, currentRelPath))
 
-			return fs.SkipDir
-		}
+				return fs.SkipDir
+			}
 
-		if currentRelPath == "." {
+			// Exclude relative path based on a regular expression
+			if t.RegexpExcludePath.MatchString(currentRelPath) {
+				slog.Debug(fmt.Sprintf("🚫 Skipped path: 📁%s [📁%s]", currentPath, currentRelPath))
+
+				return fs.SkipDir
+			}
+
+			// if directory is called 'tests' or 'examples' then do not walk the dir
+			if t.RegexpIgnoreDir.MatchString(currentDirName) {
+				slog.Debug(fmt.Sprintf("🚫 Skipped path: 📁%s [📁%s]", currentPath, currentRelPath))
+
+				return fs.SkipDir
+			}
+
+			// if subdirectory of 'modules' directory then add it to container and skip further directories
+			if extractModules && t.RegexpModuleDir.MatchString(currentParentDirName) &&
+				currentRelPath != "." {
+				traverseNameSplit := strings.Split(tfPath.TraverseName, "@")
+
+				newTraverseName := traverseNameSplit[0] + "//" + currentRelPath
+				//nolint:mnd
+				if len(traverseNameSplit) == 2 {
+					newTraverseName += "@" + traverseNameSplit[1]
+				}
+
+				newTfPath := NewTfPath(currentPath, newTraverseName)
+				newTfPath.RelPath = "."
+				t.Container.AddPath(newTfPath.TraverseName, newTfPath)
+				newContainerPaths = append(newContainerPaths, newTfPath.TraverseName)
+
+				slog.Debug(
+					fmt.Sprintf(
+						"🚫 Skipped walking paths in: 📁%s [📁%s]",
+						currentPath,
+						currentRelPath,
+					),
+				)
+
+				return fs.SkipDir
+			}
+
+			if currentRelPath == "." {
+				return nil
+			}
+
+			_, childExists := tfPath.Children[currentRelPath]
+			if childExists {
+				slog.Debug(
+					fmt.Sprintf(
+						"🚫 Child terraform path already exist: 📁%s in 📁%s (📦%s)",
+						currentRelPath,
+						rootPath,
+						tfPath.TraverseName,
+					),
+				)
+
+				return nil
+			}
+
+			newTfPath := NewTfPath(currentPath, tfPath.TraverseName)
+			newTfPath.RelPath = currentRelPath
+
+			tfPath.Children[currentRelPath] = newTfPath
+			slog.Debug(
+				fmt.Sprintf(
+					"🟣 Child terraform path added: 📁%s to 📁%s (📦%s)",
+					currentRelPath,
+					rootPath,
+					tfPath.TraverseName,
+				),
+			)
+
 			return nil
-		}
-
-		_, childExists := tfPath.Children[currentRelPath]
-		if childExists {
-			slog.Debug(fmt.Sprintf("🚫 Child terraform path already exist: 📁%s in 📁%s (📦%s)", currentRelPath, rootPath, tfPath.TraverseName))
-
-			return nil
-		}
-
-		newTfPath := NewTfPath(currentPath, tfPath.TraverseName)
-		newTfPath.RelPath = currentRelPath
-
-		tfPath.Children[currentRelPath] = newTfPath
-		slog.Debug(fmt.Sprintf("🟣 Child terraform path added: 📁%s to 📁%s (📦%s)", currentRelPath, rootPath, tfPath.TraverseName))
-
-		return nil
-	})
-
+		},
+	)
 	if errwd != nil {
-		return []string{}, fmt.Errorf("error walking directories in terraform path %s (📦%s): %s", rootPath, tfPath.TraverseName, errwd.Error())
+		return []string{}, fmt.Errorf(
+			"error walking directories in terraform path %s (📦%s): %s",
+			rootPath,
+			tfPath.TraverseName,
+			errwd.Error(),
+		)
 	}
 
 	return newContainerPaths, nil
 }
 
-func (t *Traverser) link(rootTfParent *TfPath, childTfPath *TfPath) error {
+//nolint:gocognit,funlen
+func (t *Traverser) link(rootTfParent *TfPath, childTfPath *TfPath) {
 	for moduleName, module := range childTfPath.Modules {
 		source := module.FieldSource
 		version := module.FieldVersion
 
 		if !strings.HasPrefix(source, ".") {
 			containerPathKey := fmt.Sprintf("%s@%s", source, version)
+
 			containerTfPath, exists := t.Container.Paths[containerPathKey]
 			if !exists {
-				slog.Info(fmt.Sprintf("🚫 Skipped linking child terraform path 📁%s (📦%s) module %s due to source 📦%s not found in the container", childTfPath.Path, childTfPath.TraverseName, moduleName, containerPathKey))
+				slog.Info(
+					fmt.Sprintf(
+						"🚫 Skipped linking child terraform path 📁%s (📦%s) module %s due to source 📦%s not found in the container",
+						childTfPath.Path,
+						childTfPath.TraverseName,
+						moduleName,
+						containerPathKey,
+					),
+				)
 
 				continue
 			}
 
 			module.TfPath = containerTfPath
-			slog.Debug(fmt.Sprintf("🟡 Linked module %s in path 📁%s (📦%s) to container path 📁%s (📦%s)", moduleName, childTfPath.RelPath, childTfPath.TraverseName, containerTfPath.Path, containerTfPath.TraverseName))
+			slog.Debug(
+				fmt.Sprintf(
+					"🟡 Linked module %s in path 📁%s (📦%s) to container path 📁%s (📦%s)",
+					moduleName,
+					childTfPath.RelPath,
+					childTfPath.TraverseName,
+					containerTfPath.Path,
+					containerTfPath.TraverseName,
+				),
+			)
 
 			continue
 		}
 
 		cleanPath := filepath.Clean(filepath.Join(childTfPath.Path, source))
+
 		relPath, err := filepath.Rel(rootTfParent.Path, cleanPath)
 		if err != nil {
-			slog.Info(fmt.Sprintf("🚫 Skipped linking child terraform path 📁%s (📦%s) to module %s due to problem with relative path: %s", childTfPath.Path, childTfPath.TraverseName, moduleName, err.Error()))
+			slog.Info(
+				fmt.Sprintf(
+					"🚫 Skipped linking child terraform path 📁%s (📦%s) to module %s due to problem with relative path: %s",
+					childTfPath.Path,
+					childTfPath.TraverseName,
+					moduleName,
+					err.Error(),
+				),
+			)
 
 			continue
 		}
@@ -243,15 +321,26 @@ func (t *Traverser) link(rootTfParent *TfPath, childTfPath *TfPath) error {
 		}
 
 		foundLink := false
+
 		if strings.HasPrefix(relPath, "../") {
 			// search in the container
 			for _, containerTfPath := range t.Container.Paths {
 				if containerTfPath.Path == cleanPath {
 					module.TfPath = containerTfPath
 
-					slog.Debug(fmt.Sprintf("🟡 Linked module %s in path 📁%s (📦%s) to container path 📁%s (📦%s)", moduleName, childTfPath.RelPath, childTfPath.TraverseName, containerTfPath.Path, containerTfPath.TraverseName))
+					slog.Debug(
+						fmt.Sprintf(
+							"🟡 Linked module %s in path 📁%s (📦%s) to container path 📁%s (📦%s)",
+							moduleName,
+							childTfPath.RelPath,
+							childTfPath.TraverseName,
+							containerTfPath.Path,
+							containerTfPath.TraverseName,
+						),
+					)
 
 					foundLink = true
+
 					break
 				}
 			}
@@ -266,37 +355,63 @@ func (t *Traverser) link(rootTfParent *TfPath, childTfPath *TfPath) error {
 			if module.TfPath == nil {
 				module.TfPath = moduleTfPath
 
-				slog.Debug(fmt.Sprintf("🟡 Linked module %s in path 📁%s (📦%s) to parent path 📁%s (📦%s)", moduleName, childTfPath.RelPath, childTfPath.TraverseName, moduleTfPath.Path, moduleTfPath.TraverseName))
+				slog.Debug(
+					fmt.Sprintf(
+						"🟡 Linked module %s in path 📁%s (📦%s) to parent path 📁%s (📦%s)",
+						moduleName,
+						childTfPath.RelPath,
+						childTfPath.TraverseName,
+						moduleTfPath.Path,
+						moduleTfPath.TraverseName,
+					),
+				)
 
 				continue
 			}
 		}
 
 		// if inside a module and module path does not contain '//modules' already then search in the container
-		if rootTfParent.TraverseName != "." && !strings.Contains(rootTfParent.TraverseName, "//modules/") && strings.HasPrefix(source, "./modules/") {
+		if rootTfParent.TraverseName != "." &&
+			!strings.Contains(rootTfParent.TraverseName, "//modules/") &&
+			strings.HasPrefix(source, "./modules/") {
 			rootTfPathModule := strings.Split(rootTfParent.TraverseName, "@")
 			rootTfPathSource := rootTfPathModule[0]
 			rootTfPathVersion := rootTfPathModule[1]
 
 			moduleToSearch := fmt.Sprintf("%s//%s@%s", rootTfPathSource, relPath, rootTfPathVersion)
-			log.Printf("%s", moduleToSearch)
+
 			containerTfPath, exists := t.Container.Paths[moduleToSearch]
 			if exists {
 				module.TfPath = containerTfPath
 
-				slog.Debug(fmt.Sprintf("🟡 Linked module %s in path 📁%s (📦%s) to container path 📁%s (📦%s)", moduleName, childTfPath.RelPath, childTfPath.TraverseName, containerTfPath.Path, containerTfPath.TraverseName))
+				slog.Debug(
+					fmt.Sprintf(
+						"🟡 Linked module %s in path 📁%s (📦%s) to container path 📁%s (📦%s)",
+						moduleName,
+						childTfPath.RelPath,
+						childTfPath.TraverseName,
+						containerTfPath.Path,
+						containerTfPath.TraverseName,
+					),
+				)
 
 				continue
 			}
 		}
 
-		slog.Info(fmt.Sprintf("🚫 Skipped linking child terraform path 📁%s (📦%s) module %s due to relative path %s not found in its parent", childTfPath.Path, childTfPath.TraverseName, moduleName, relPath))
+		slog.Info(
+			fmt.Sprintf(
+				"🚫 Skipped linking child terraform path 📁%s (📦%s) module %s due to relative path %s not found in its parent",
+				childTfPath.Path,
+				childTfPath.TraverseName,
+				moduleName,
+				relPath,
+			),
+		)
 	}
-
-	return nil
 }
 
-func (t *Traverser) parseFiles(tfPath *TfPath) error {
+func (t *Traverser) parseFiles(tfPath *TfPath, foundModules *[]string) error {
 	files, err := os.ReadDir(tfPath.Path)
 	if err != nil {
 		return fmt.Errorf("error reading directory %s: %s", tfPath.Path, err.Error())
@@ -308,7 +423,8 @@ func (t *Traverser) parseFiles(tfPath *TfPath) error {
 		}
 
 		fileFullPath := filepath.Join(tfPath.Path, file.Name())
-		err := t.parseFile(tfPath, file.Name())
+
+		err := t.parseFile(tfPath, file.Name(), foundModules)
 		if err != nil {
 			slog.Error(fmt.Sprintf("❌ Error parsing file 📄%s: %s", fileFullPath, err.Error()))
 
@@ -320,7 +436,8 @@ func (t *Traverser) parseFiles(tfPath *TfPath) error {
 	return nil
 }
 
-func (t *Traverser) parseFile(tfPath *TfPath, fileName string) error {
+//nolint:funlen
+func (t *Traverser) parseFile(tfPath *TfPath, fileName string, foundModules *[]string) error {
 	filePath := filepath.Join(tfPath.Path, fileName)
 
 	hclFile, diags := t.Parser.ParseHCLFile(filePath)
@@ -337,31 +454,64 @@ func (t *Traverser) parseFile(tfPath *TfPath, fileName string) error {
 
 	for _, block := range content.Blocks {
 		if len(block.Labels) == 2 && block.Type == "resource" {
-			resource, _ := t.parseHCLBlockResource(block)
+			resource := t.parseHCLBlockResource(block)
 			if resource == nil {
 				continue
 			}
 
 			resource.FileName = fileName
 			resource.FilePath = filePath
-			tfPath.Resources[resource.Name] = resource
+			tfPath.Resources[resource.Type+"."+resource.Name] = resource
 
-			slog.Info(fmt.Sprintf("🟠 Found resource %s in file 📄%s (📦%s)", resource.Name, filePath, tfPath.TraverseName))
+			slog.Info(
+				fmt.Sprintf(
+					"🟠 Found resource %s in file 📄%s (📦%s)",
+					resource.Name,
+					filePath,
+					tfPath.TraverseName,
+				),
+			)
+
 			if resource.FieldForEach != "" {
-				slog.Info(fmt.Sprintf("🟠 Found resource %s for_each is 🔄%s", resource.Name, resource.FieldForEach))
+				slog.Info(
+					fmt.Sprintf(
+						"🟠 Found resource %s for_each is 🔄%s",
+						resource.Name,
+						resource.FieldForEach,
+					),
+				)
 			}
 		}
 
 		if len(block.Labels) == 1 && block.Type == "module" {
-			module, _ := t.parseHCLBlockModule(block)
+			module := t.parseHCLBlockModule(block)
 			if module == nil {
 				continue
 			}
 
 			if module.FieldSource == "../" {
-				slog.Debug(fmt.Sprintf("💭 Ignoring module %s with source '../' in 📄%s", module.Name, filePath))
+				slog.Debug(
+					fmt.Sprintf(
+						"🚫 Ignoring module %s with source '../' in 📄%s",
+						module.Name,
+						filePath,
+					),
+				)
 
 				continue
+			}
+
+			foundModuleSource := module.FieldSource
+			foundModuleVersion := module.FieldVersion
+
+			// If source field targets a module then we need to cut it out
+			if strings.Contains(module.FieldSource, "//modules") {
+				sourceSplit := strings.Split(module.FieldSource, "//")
+				if sourceSplit[0] == "" {
+					continue
+				}
+
+				foundModuleSource = sourceSplit[0]
 			}
 
 			module.FileName = fileName
@@ -369,9 +519,29 @@ func (t *Traverser) parseFile(tfPath *TfPath, fileName string) error {
 
 			tfPath.Modules[module.Name] = module
 
-			slog.Info(fmt.Sprintf("🔵 Found module %s in file 📄%s (📦%s)", module.Name, filePath, tfPath.TraverseName))
+			if foundModules != nil {
+				*foundModules = append(*foundModules, foundModuleSource + "@" + foundModuleVersion)
+			}
+
+			slog.Info(
+				fmt.Sprintf(
+					"🔵 Found module %s [%s@%s] in file 📄%s (📦%s)",
+					module.Name,
+					module.FieldSource,
+					module.FieldVersion,
+					filePath,
+					tfPath.TraverseName,
+				),
+			)
+
 			if module.FieldForEach != "" {
-				slog.Info(fmt.Sprintf("🔵 Found module %s for_each is 🔄%s", module.Name, module.FieldForEach))
+				slog.Info(
+					fmt.Sprintf(
+						"🔵 Found module %s for_each is 🔄%s",
+						module.Name,
+						module.FieldForEach,
+					),
+				)
 			}
 		}
 	}
@@ -379,17 +549,21 @@ func (t *Traverser) parseFile(tfPath *TfPath, fileName string) error {
 	return nil
 }
 
-func (t *Traverser) parseHCLBlockResource(block *hcl.Block) (*TfResource, error) {
+func (t *Traverser) parseHCLBlockResource(block *hcl.Block) *TfResource {
 	resourceType := block.Labels[0]
 
-	if resourceType != t.ResourceType {
-		return nil, nil
+	if !t.RegexpResourceType.MatchString(resourceType) {
+		return nil
 	}
 
 	resourceName := block.Labels[1]
 
+	if !t.RegexpResourceName.MatchString(resourceName) {
+		return nil
+	}
+
 	resourceInstance := &TfResource{
-		Type:  resourceType,
+		Type: resourceType,
 		Name: resourceName,
 	}
 
@@ -399,10 +573,10 @@ func (t *Traverser) parseHCLBlockResource(block *hcl.Block) (*TfResource, error)
 	forEachField, _ := t.getForEachFromHCLBlock(block)
 	resourceInstance.FieldForEach = forEachField
 
-	return resourceInstance, nil
+	return resourceInstance
 }
 
-func (t *Traverser) parseHCLBlockModule(block *hcl.Block) (*TfModule, error) {
+func (t *Traverser) parseHCLBlockModule(block *hcl.Block) *TfModule {
 	moduleName := block.Labels[0]
 
 	moduleInstance := &TfModule{
@@ -416,35 +590,41 @@ func (t *Traverser) parseHCLBlockModule(block *hcl.Block) (*TfModule, error) {
 	forEachField, _ := t.getForEachFromHCLBlock(block)
 	moduleInstance.FieldForEach = forEachField
 
-	return moduleInstance, nil
+	return moduleInstance
 }
 
+//nolint:funlen
 func (t *Traverser) getNameFromHCLBlock(block *hcl.Block) (string, error) {
 	name := block.Labels[0]
 
-	bodyContent, _, diags := block.Body.PartialContent(tfResourceDefinition)
+	bodyContent, _, diags := block.Body.PartialContent(t.HCLBodySchema)
 	if diags.HasErrors() {
-		return "", fmt.Errorf("error getting partial content: %s.%s: %s", block.Type, name, diags.Error())
+		return "", fmt.Errorf(
+			"error getting partial content: %s.%s: %s",
+			block.Type,
+			name,
+			diags.Error(),
+		)
 	}
 
 	attrToGet := ""
-	for attrName, _ := range bodyContent.Attributes {
-		if attrName == "name" {
-			attrToGet = attrName
-			break
+
+	for attrName := range bodyContent.Attributes {
+		for _, displayAttr := range t.DisplayAttributes {
+			if attrName == displayAttr {
+				attrToGet = attrName
+
+				break
+			}
 		}
-		if attrToGet == "" && attrName == "name_prefix" {
-			attrToGet = attrName
-			break
-		}
-		if attrToGet == "" && attrName == "id" {
-			attrToGet = attrName
+
+		if attrToGet != "" {
 			break
 		}
 	}
 
 	if attrToGet == "" {
-		return "no-name-attr", nil
+		return labelNoFieldName, nil
 	}
 
 	nameField := ""
@@ -455,6 +635,7 @@ func (t *Traverser) getNameFromHCLBlock(block *hcl.Block) (string, error) {
 		}
 
 		var srcRange hcl.Range
+
 		var found bool
 
 		expr, ok := attr.Expr.(*hclsyntax.TemplateExpr)
@@ -480,15 +661,24 @@ func (t *Traverser) getNameFromHCLBlock(block *hcl.Block) (string, error) {
 		}
 	}
 
+	if nameField == "" {
+		nameField = labelFieldNameEmpty
+	}
+
 	return nameField, nil
 }
 
 func (t *Traverser) getForEachFromHCLBlock(block *hcl.Block) (string, error) {
 	name := block.Labels[0]
 
-	bodyContent, _, diags := block.Body.PartialContent(tfResourceDefinition)
+	bodyContent, _, diags := block.Body.PartialContent(t.HCLBodySchema)
 	if diags.HasErrors() {
-		return "", fmt.Errorf("error getting partial content: %s.%s: %s", block.Type, name, diags.Error())
+		return "", fmt.Errorf(
+			"error getting partial content: %s.%s: %s",
+			block.Type,
+			name,
+			diags.Error(),
+		)
 	}
 
 	forEachField := ""
@@ -499,6 +689,7 @@ func (t *Traverser) getForEachFromHCLBlock(block *hcl.Block) (string, error) {
 		}
 
 		var srcRange hcl.Range
+
 		var found bool
 
 		expr, ok := attr.Expr.(*hclsyntax.TupleConsExpr)
@@ -530,11 +721,17 @@ func (t *Traverser) getForEachFromHCLBlock(block *hcl.Block) (string, error) {
 func (t *Traverser) getSourceFromHCLBlock(block *hcl.Block) (string, string, error) {
 	name := block.Labels[0]
 
-	bodyContent, _, diags := block.Body.PartialContent(tfModuleDefinition)
+	bodyContent, _, diags := block.Body.PartialContent(t.HCLBodySchema)
 	if diags.HasErrors() {
-		return "", "", fmt.Errorf("error getting partial content: %s.%s: %s", block.Type, name, diags.Error())
+		return "", "", fmt.Errorf(
+			"error getting partial content: %s.%s: %s",
+			block.Type,
+			name,
+			diags.Error(),
+		)
 	}
 
+	//nolint:mnd
 	fieldValues := make(map[string]string, 2)
 
 	for attrName, attr := range bodyContent.Attributes {

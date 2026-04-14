@@ -1,3 +1,4 @@
+// Package chart contains all the code related to generating a diagram.
 package chart
 
 import (
@@ -10,7 +11,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/keenbytes/tfsketch/pkg/tfpath"
+	"github.com/mikolajgasior/tfsketch/pkg/tfpath"
 )
 
 const config = `---
@@ -30,43 +31,65 @@ flowchart LR
   classDef tf-name fill:#eb91c7
 `
 
-const elementSeparator = "__"
-const partSeparator = "_"
+const (
+	elementSeparator = "__"
+	partSeparator    = "_"
+)
 
 const maxWriteModulesDepth = 5
 
 var nonAlphanumericRegex = regexp.MustCompile(`[^a-zA-Z0-9 ]+`)
 
-type MermaidFlowChart struct{
-  onlyRoot bool
-  includeFilenames bool
-  chart *strings.Builder
-  summary *Summary
+const newFilesMode = 0o600
+
+// MermaidFlowChart represents a flowchart.
+type MermaidFlowChart struct {
+	onlyRoot           bool
+	includeFilenames   bool
+	minify             bool
+	module             bool
+	chart              *strings.Builder
+	summary            *Summary
+	idNum              int
+	minifiedElementIDs *map[string]string
 }
 
-func NewMermaidFlowChart(onlyRoot, includeFilenames bool) *MermaidFlowChart {
-  flowchart := &MermaidFlowChart{
-    chart: &strings.Builder{},
-    onlyRoot: onlyRoot,
-    includeFilenames: includeFilenames,
-    summary: NewSummary(),
-  }
+// NewMermaidFlowChart returns a MermaidFlowChart instance.
+func NewMermaidFlowChart(onlyRoot, includeFilenames, minify, module bool) *MermaidFlowChart {
+	minifiedElementIDs := map[string]string{}
 
-  return flowchart
+	flowchart := &MermaidFlowChart{
+		chart:              &strings.Builder{},
+		onlyRoot:           onlyRoot,
+		includeFilenames:   includeFilenames,
+		minify:             minify,
+		module:             module,
+		summary:            NewSummary(),
+		idNum:              0,
+		minifiedElementIDs: &minifiedElementIDs,
+	}
+
+	return flowchart
 }
 
-func (m MermaidFlowChart) Reset() {
-  m.chart.Reset()
-  m.summary.Reset()
+// Reset resets the chart to the start values so that the chart generation can be re-run.
+func (m *MermaidFlowChart) Reset() {
+	m.chart.Reset()
+	m.summary.Reset()
+	m.idNum = 0
+
+	minifiedElementIDs := map[string]string{}
+	m.minifiedElementIDs = &minifiedElementIDs
 }
 
-func (m MermaidFlowChart) Generate(tfPath *tfpath.TfPath, resourceType string, outputFile string) error {
-  m.Reset()
+// Generate takes a path to Terraform code and generates chart file.
+func (m *MermaidFlowChart) Generate(tfPath *tfpath.TfPath, outputFile string) error {
+	m.Reset()
 
-  m.chart.WriteString(config)
-  m.writePath(tfPath)
+	m.chart.WriteString(config)
+	m.writePath(tfPath)
 
-	err := os.WriteFile(filepath.Clean(outputFile), []byte(m.chart.String()), 0600)
+	err := os.WriteFile(filepath.Clean(outputFile), []byte(m.chart.String()), newFilesMode)
 	if err != nil {
 		slog.Error(
 			"error writing output file",
@@ -76,18 +99,19 @@ func (m MermaidFlowChart) Generate(tfPath *tfpath.TfPath, resourceType string, o
 	}
 
 	summaryFile := outputFile + ".json"
-  summaryBytes, err := json.Marshal(m.summary)
-  if err != nil {
-    slog.Error(
+
+	summaryBytes, err := json.Marshal(m.summary)
+	if err != nil {
+		slog.Error(
 			"error marshaling summary",
 			slog.String("path", summaryFile),
 			slog.String("error", err.Error()),
 		)
 
-    return nil
-  }
+		return nil
+	}
 
-	err = os.WriteFile(filepath.Clean(summaryFile), summaryBytes, 0600)
+	err = os.WriteFile(filepath.Clean(summaryFile), summaryBytes, newFilesMode)
 	if err != nil {
 		slog.Error(
 			"error writing summary file",
@@ -96,201 +120,290 @@ func (m MermaidFlowChart) Generate(tfPath *tfpath.TfPath, resourceType string, o
 		)
 	}
 
-  return nil
+	return nil
 }
 
-func (m MermaidFlowChart) writePath(tfPath *tfpath.TfPath) {
-  elPath, elID, _ := m.pathElement(tfPath)
-  _, _ = m.chart.WriteString(fmt.Sprintf("  p%s%s\n", partSeparator, elPath))
+func (m *MermaidFlowChart) writePath(tfPath *tfpath.TfPath) {
+	elPath, elID := m.pathElement(tfPath)
+	_, _ = fmt.Fprintf(m.chart, "  p%s%s\n", partSeparator, elPath)
 
-  // path resources
-  m.writePathResources(tfPath, elID, false, false)
+	// path resources
+	m.writePathResources(tfPath, elID, false, false)
 
-  // path modules
-  m.writePathModules(tfPath, elID, "", "", false, 1)
+	// path modules
+	m.writePathModules(tfPath, elID, "", "", false, 1)
 
-  // sub-paths
-  if m.onlyRoot {
-    return
-  }
+	// sub-paths
+	if m.onlyRoot {
+		return
+	}
 
-  sortedPaths := tfPath.ChildrenNamesSorted()
-  for _, childKey := range sortedPaths {
-    childTfPath := tfPath.Children[childKey]
-    if childTfPath == nil {
-      continue
-    }
+	sortedPaths := tfPath.ChildrenNamesSorted()
+	for _, childKey := range sortedPaths {
+		childTfPath := tfPath.Children[childKey]
+		if childTfPath == nil {
+			continue
+		}
 
-    // not module
-    _, isModule := tfPath.IsChildModule[childKey]
-    if isModule {
-      continue
-    }
+		// not module
+		_, isModule := tfPath.IsChildModule[childKey]
+		if isModule {
+			continue
+		}
 
-    // only first-depth sub-directories
-    if strings.Contains(childTfPath.RelPath, "/") {
-      continue
-    }
+		// ignore 'modules' sub-directory
+		if childTfPath.RelPath == "modules" {
+			continue
+		}
 
-    elChildPath, elChildID, _ := m.pathElement(childTfPath)
-    _, _ = m.chart.WriteString(fmt.Sprintf("  p%s%s\n", partSeparator, elChildPath))
+		// only first-depth sub-directories, unless module is drawn
+		if strings.Contains(childTfPath.RelPath, "/") {
+			if !m.module {
+				continue
+			}
 
-    // resources
-    m.writePathResources(childTfPath, elChildID, false, false)
+			if !strings.HasPrefix(childTfPath.RelPath, "modules/") {
+				continue
+			}
+		}
 
-    // modules
-    m.writePathModules(childTfPath, elChildID, "", "", false, 1)
-  }
+		elChildPath, elChildID := m.pathElement(childTfPath)
+		_, _ = fmt.Fprintf(m.chart, "  p%s%s\n", partSeparator, elChildPath)
 
+		// resources
+		m.writePathResources(childTfPath, elChildID, false, false)
+
+		// modules
+		m.writePathModules(childTfPath, elChildID, "", "", false, 1)
+	}
 }
 
-func (m MermaidFlowChart) writePathResources(tfPath *tfpath.TfPath, elID string, isPathModule, forceMultiple bool) {
-  sortedResources := tfPath.ResourceNamesSorted()
-  for _, resourceKey := range sortedResources {
-    resource := tfPath.Resources[resourceKey]
-    if resource == nil {
-      continue
-    }
+func (m *MermaidFlowChart) writePathResources(
+	tfPath *tfpath.TfPath,
+	elID string,
+	isPathModule, forceMultiple bool,
+) {
+	sortedResources := tfPath.ResourceNamesSorted()
+	for _, resourceKey := range sortedResources {
+		resource := tfPath.Resources[resourceKey]
+		if resource == nil {
+			continue
+		}
 
-    elResource, elResourceID, _, isMultiple := m.resourceElement(resource, elID)
-    if isPathModule {
-      _, _ = m.chart.WriteString(fmt.Sprintf("  m%s%s ---> r%s%s\n", partSeparator, elID, partSeparator, elResource))
-    } else {
-      _, _ = m.chart.WriteString(fmt.Sprintf("  p%s%s ----> r%s%s\n", partSeparator, elID, partSeparator, elResource))
-    }
+		elResource, elResourceID, _, isMultiple := m.resourceElement(resource, elID)
+		if isPathModule {
+			_, _ = fmt.Fprintf(
+				m.chart,
+				"  m%s%s ---> r%s%s\n",
+				partSeparator,
+				elID,
+				partSeparator,
+				elResource,
+			)
+		} else {
+			_, _ = fmt.Fprintf(m.chart, "  p%s%s ----> r%s%s\n", partSeparator, elID, partSeparator, elResource)
+		}
 
-    elName, elNameID, elNameLabel := m.nameElement(resource, elResourceID, isMultiple || forceMultiple)
-    _, _ = m.chart.WriteString(fmt.Sprintf("  r%s%s ---> n%s%s\n", partSeparator, elResourceID, partSeparator, elName))
+		elName, elNameID, elNameLabel := m.nameElement(
+			resource,
+			elResourceID,
+			isMultiple || forceMultiple,
+		)
+		_, _ = fmt.Fprintf(
+			m.chart,
+			"  r%s%s ---> n%s%s\n",
+			partSeparator,
+			elResourceID,
+			partSeparator,
+			elName,
+		)
 
-
-    m.summary.AddEdge(fmt.Sprintf("n%s%s", partSeparator, elNameID))
-    m.summary.AddName(elNameLabel)
-  }
+		m.summary.AddEdge(fmt.Sprintf("n%s%s", partSeparator, elNameID))
+		m.summary.AddName(elNameLabel)
+	}
 }
 
-func (m MermaidFlowChart) writePathModules(tfPath *tfpath.TfPath, elPathID, elParentModuleID, elParentModuleLabel string, forceMultiple bool, depth int) {
-  if depth > maxWriteModulesDepth {
-    return
-  }
+func (m *MermaidFlowChart) writePathModules(
+	tfPath *tfpath.TfPath,
+	elPathID, elParentModuleID, elParentModuleLabel string,
+	forceMultiple bool,
+	depth int,
+) {
+	if depth > maxWriteModulesDepth {
+		return
+	}
 
-  if tfPath == nil {
-    return
-  }
+	if tfPath == nil {
+		return
+	}
 
-  sortedModules := tfPath.ModuleNamesSorted()
-  for _, moduleKey := range sortedModules {
-    module := tfPath.Modules[moduleKey]
-    if module == nil {
-      continue
-    }
+	sortedModules := tfPath.ModuleNamesSorted()
+	for _, moduleKey := range sortedModules {
+		module := tfPath.Modules[moduleKey]
+		if module == nil {
+			continue
+		}
 
-    if !strings.HasPrefix(module.FieldSource, ".") {
-      m.summary.AddModule(module.FieldSource + "@" + module.FieldVersion)
-    }
+		if !strings.HasPrefix(module.FieldSource, ".") {
+			m.summary.AddModule(module.FieldSource + "@" + module.FieldVersion)
+		}
 
-    if module.TfPath == nil {
-      continue
-    }
+		if module.TfPath == nil {
+			continue
+		}
 
-    elModule, elModuleID, elModuleLabel, isMultiple := m.moduleElement(module, elPathID, elParentModuleID, elParentModuleLabel)
-    if len(module.TfPath.Resources) > 0 {
-      _, _ = m.chart.WriteString(fmt.Sprintf("  p%s%s --> m%s%s\n", partSeparator, elPathID, partSeparator, elModule))
+		elModule, elModuleID, elModuleLabel, isMultiple := m.moduleElement(
+			module,
+			elPathID,
+			elParentModuleID,
+			elParentModuleLabel,
+		)
+		if len(module.TfPath.Resources) > 0 {
+			_, _ = fmt.Fprintf(
+				m.chart,
+				"  p%s%s --> m%s%s\n",
+				partSeparator,
+				elPathID,
+				partSeparator,
+				elModule,
+			)
 
-      // resources
-      m.writePathResources(module.TfPath, elModuleID, true, isMultiple || forceMultiple)
-    }
+			// resources
+			m.writePathResources(module.TfPath, elModuleID, true, isMultiple || forceMultiple)
+		}
 
-    // modules
-    m.writePathModules(module.TfPath, elPathID, elModuleID, elModuleLabel, isMultiple || forceMultiple, depth+1)
-  }
+		// modules
+		m.writePathModules(
+			module.TfPath,
+			elPathID,
+			elModuleID,
+			elModuleLabel,
+			isMultiple || forceMultiple,
+			depth+1,
+		)
+	}
 }
 
-func (m MermaidFlowChart) pathElement(tfPath *tfpath.TfPath) (string, string, string) {
-  id := m.elementID(tfPath.RelPath)
-  label := tfPath.RelPath
+//nolint:varnamelen
+func (m *MermaidFlowChart) pathElement(tfPath *tfpath.TfPath) (string, string) {
+	id := m.elementID(tfPath.RelPath)
+	label := tfPath.RelPath
 
-  if id == "" {
-    id = "root"
-  }
+	if id == "" {
+		id = "root"
+	}
 
-  if label == "" {
-    label = "."
-  }
+	if label == "" {
+		label = "."
+	}
 
-  return fmt.Sprintf("%s[\"%s\"]:::tf-path", id, label), id, label
+	return fmt.Sprintf("%s[\"%s\"]:::tf-path", id, label), id
 }
 
-func (m MermaidFlowChart) resourceElement(resource *tfpath.TfResource, elPathID string) (string, string, string, bool) {
-  id := elPathID + elementSeparator + m.elementID(resource.Name)
-  label := fmt.Sprintf("%s.%s", resource.Type, resource.Name)
+//nolint:varnamelen
+func (m *MermaidFlowChart) resourceElement(
+	resource *tfpath.TfResource,
+	elPathID string,
+) (string, string, string, bool) {
+	id := elPathID + elementSeparator + m.elementID(resource.Type+partSeparator+resource.Name)
+	label := fmt.Sprintf("%s.%s", resource.Type, resource.Name)
 
-  isMultiple := false
-  if resource.FieldForEach != "" {
-    label += "<br>*for_each = " + m.escapeLabel(resource.FieldForEach) + "*"
-    isMultiple = true
-  }
+	isMultiple := false
 
-  if m.includeFilenames {
-    label += "<br><i>(" + m.escapeLabel(resource.FilePath) + ")</i>"
-  }
+	if resource.FieldForEach != "" {
+		label += "<br>*for_each = " + m.escapeLabel(resource.FieldForEach) + "*"
+		isMultiple = true
+	}
 
-  return fmt.Sprintf("%s[\"%s\"]:::tf-resource", id, label), id, label, isMultiple
+	if m.includeFilenames {
+		label += "<br><i>(" + m.escapeLabel(resource.FilePath) + ")</i>"
+	}
+
+	return fmt.Sprintf("%s[\"%s\"]:::tf-resource", id, label), id, label, isMultiple
 }
 
-func (m MermaidFlowChart) nameElement(resource *tfpath.TfResource, elResourceID string, isMultiple bool) (string, string, string) {
-  id := elResourceID + partSeparator + "n"
-  label := m.escapeLabel(resource.FieldName)
+//nolint:varnamelen
+func (m *MermaidFlowChart) nameElement(
+	resource *tfpath.TfResource,
+	elResourceID string,
+	isMultiple bool,
+) (string, string, string) {
+	id := elResourceID + partSeparator + "n"
+	label := m.escapeLabel(resource.FieldName)
 
-  if isMultiple {
-    return fmt.Sprintf("%s:::tf-name@{ shape: procs, label: \"%s\"}", id, label), id, label
-  } else {
-    return fmt.Sprintf("%s[\"%s\"]:::tf-name", id, label), id, label
-  }
+	if isMultiple {
+		return fmt.Sprintf("%s:::tf-name@{ shape: procs, label: \"%s\"}", id, label), id, label
+	}
+
+	return fmt.Sprintf("%s[\"%s\"]:::tf-name", id, label), id, label
 }
 
-func (m MermaidFlowChart) moduleElement(module *tfpath.TfModule, elPathID, elParentModuleID, elParentModuleLabel string) (string, string, string, bool) {
-  id := elPathID + elementSeparator
-  if elParentModuleID != "" {
-    id += elParentModuleID + elementSeparator
-  }
-  id += m.elementID(module.Name)
+//nolint:varnamelen
+func (m *MermaidFlowChart) moduleElement(
+	module *tfpath.TfModule,
+	elPathID, elParentModuleID, elParentModuleLabel string,
+) (string, string, string, bool) {
+	id := elPathID + elementSeparator
+	if elParentModuleID != "" {
+		id += elParentModuleID + elementSeparator
+	}
 
-  source := module.FieldSource
-  version := module.FieldVersion
-  
-  var label string
-  if elParentModuleLabel != "" {
-    label += elParentModuleLabel + "<br><b>/</b><br>"
-  }
-  label += fmt.Sprintf("module.%s<br>%s", module.Name, m.escapeLabel(source))
-  if !strings.HasPrefix(source, ".") {
-    label += fmt.Sprintf("(at)%s", m.escapeLabel(version))
-  }
+	id += m.elementID(module.Name)
 
-  isMultiple := false
-  if module.FieldForEach != "" {
-    label += "<br>*for_each = " + m.escapeLabel(module.FieldForEach) + "*"
-    isMultiple = true
-  }
+	source := module.FieldSource
+	version := module.FieldVersion
 
+	var label string
+	if elParentModuleLabel != "" {
+		label += elParentModuleLabel + "<br><b>/</b><br>"
+	}
 
-  if m.includeFilenames {
-    label += "<br><i>(" + m.escapeLabel(module.FilePath) + ")</i>"
-  }
+	label += fmt.Sprintf("module.%s<br>%s", module.Name, m.escapeLabel(source))
 
-  return fmt.Sprintf("%s[\"%s\"]:::tf-int-mod", id, label), id, label, isMultiple
+	if !strings.HasPrefix(source, ".") {
+		label += "(at)" + m.escapeLabel(version)
+	}
+
+	isMultiple := false
+
+	if module.FieldForEach != "" {
+		label += "<br>*for_each = " + m.escapeLabel(module.FieldForEach) + "*"
+		isMultiple = true
+	}
+
+	if m.includeFilenames {
+		label += "<br><i>(" + m.escapeLabel(module.FilePath) + ")</i>"
+	}
+
+	return fmt.Sprintf("%s[\"%s\"]:::tf-int-mod", id, label), id, label, isMultiple
 }
 
-func (m MermaidFlowChart) elementID(text string) string {
+func (m *MermaidFlowChart) elementID(text string) string {
 	text = strings.ReplaceAll(text, "/", "_")
 	text = m.removeNonAlphanumericChars(text)
-	return text
+
+	if !m.minify {
+		return text
+	}
+
+	minifiedIDs := *m.minifiedElementIDs
+
+	minified, exists := minifiedIDs[text]
+	if exists {
+		return minified
+	}
+
+	m.idNum++
+	minifiedID := fmt.Sprintf("m%d", m.idNum)
+	minifiedIDs[text] = minifiedID
+
+	return minifiedID
 }
 
-func (m MermaidFlowChart) removeNonAlphanumericChars(str string) string {
+func (m *MermaidFlowChart) removeNonAlphanumericChars(str string) string {
 	return nonAlphanumericRegex.ReplaceAllString(str, "")
 }
 
-func (m MermaidFlowChart) escapeLabel(label string) string {
-  return strings.ReplaceAll(html.EscapeString(label), "&#", "#")
+func (m *MermaidFlowChart) escapeLabel(label string) string {
+	return strings.ReplaceAll(html.EscapeString(label), "&#", "#")
 }

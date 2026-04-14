@@ -1,3 +1,4 @@
+// Package main contains CLI commands definition for tfsketch.
 package main
 
 import (
@@ -5,17 +6,11 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"strings"
 
-	"github.com/keenbytes/broccli/v3"
-	"github.com/keenbytes/tfsketch/internal/overrides"
-	"github.com/keenbytes/tfsketch/pkg/chart"
-	"github.com/keenbytes/tfsketch/pkg/tfpath"
-)
-
-const (
-	linkModuleIterationsNum = 10
-	terraformPathKey        = "."
+	"github.com/mikolajgasior/broccli/v3"
+	"github.com/mikolajgasior/tfsketch/internal/overrides"
+	"github.com/mikolajgasior/tfsketch/pkg/chart"
+	"github.com/mikolajgasior/tfsketch/pkg/tfpath"
 )
 
 const (
@@ -23,82 +18,160 @@ const (
 	exitCodeErrTraversingOverrides      = 11
 	exitCodeErrParsingContainerPaths    = 21
 	exitCodeErrLinkingContainerPaths    = 22
-	exitCodeErrParsingTerraformPath     = 31
-	exitCodeErrLinkingTerraformPath     = 32
 	exitCodeErrGeneratingChart          = 41
 )
 
+//nolint:funlen
 func main() {
-	cli := broccli.NewBroccli("tfsketch", "Generate diagram from Terraform files", "Mikolaj Gasior <m@gasior.dev>")
+	cli := broccli.NewBroccli(
+		"tfsketch",
+		"Generate diagram from Terraform files",
+		"Mikołaj Gąsior <m@gasior.dev>",
+	)
 
 	cmd := cli.Command("gen", "Generate diagram", genHandler)
-	cmd.Arg("path", "DIR", "Path to directory with terraform code", broccli.TypePathFile, broccli.IsDirectory|broccli.IsExistent|broccli.IsRequired)
-	cmd.Arg("type", "RESOURCE_TYPE", "Type of the resource to search for", broccli.TypeString, broccli.IsRequired)
+	cmd.Arg(
+		"path",
+		"DIR",
+		"Path to directory with terraform code",
+		broccli.TypePathFile,
+		broccli.IsDirectory|broccli.IsExistent|broccli.IsRequired,
+	)
 	cmd.Arg("output", "FILE", "Path to an output file", broccli.TypePathFile, broccli.IsRequired)
-	cmd.Flag("overrides", "o", "FILE", "File with local paths to external modules", broccli.TypePathFile, broccli.IsRegularFile)
-	cmd.Flag("debug", "d", "", "Debug mode", broccli.TypeBool, 0)
-	cmd.Flag("only-root", "d1", "", "Draw only root directory", broccli.TypeBool, 0)
-	cmd.Flag("include-filenames", "d2", "", "Put source filenames on the diagram", broccli.TypeBool, 0)
+	cmd.Flag(
+		"path-include-regexp",
+		"i",
+		"REGEXP",
+		"Regular expression to include paths",
+		broccli.TypeString,
+		0,
+	)
+	cmd.Flag(
+		"path-exclude-regexp",
+		"e",
+		"REGEXP",
+		"Regular expression to exclude paths",
+		broccli.TypeString,
+		0,
+	)
+	cmd.Flag(
+		"type-regexp",
+		"t",
+		"REGEXP",
+		"Regular expression to filter type of the resource",
+		broccli.TypeString,
+		0,
+	)
+	cmd.Flag(
+		"name-regexp",
+		"n",
+		"REGEXP",
+		"Regular expression to filter name of the resource",
+		broccli.TypeString,
+		0,
+	)
+	cmd.Flag(
+		"display-attributes",
+		"a",
+		"ATTR1,ATTR2,...",
+		"Comma-separated resource attributes; the first found is used as the chart’s display name",
+		broccli.TypeAlphanumeric,
+		broccli.AllowHyphen|broccli.AllowUnderscore|broccli.AllowMultipleValues,
+	)
+	cmd.Flag(
+		"overrides",
+		"o",
+		"FILE",
+		"YAML file mapping external modules to local paths",
+		broccli.TypePathFile,
+		broccli.IsRegularFile,
+	)
+	cmd.Flag(
+		"cache",
+		"c",
+		"DIR",
+		"Path to directory where modules will be downloaded and cached",
+		broccli.TypePathFile,
+		broccli.IsDirectory|broccli.IsExistent,
+	)
+	cmd.Flag("debug", "d", "", "Enable debug mode", broccli.TypeBool, 0)
+	cmd.Flag("only-root", "r", "", "Draw only root directory", broccli.TypeBool, 0)
+	cmd.Flag(
+		"include-filenames",
+		"f",
+		"",
+		"Display source filenames on the diagram",
+		broccli.TypeBool,
+		0,
+	)
+	cmd.Flag(
+		"minify",
+		"s",
+		"",
+		"Minify element names in the chart to save space",
+		broccli.TypeBool,
+		0,
+	)
+	cmd.Flag(
+		"module",
+		"m",
+		"",
+		"Treat path as module and draw 'modules' sub-directory",
+		broccli.TypeBool,
+		0,
+	)
 
 	os.Exit(cli.Run(context.Background()))
 }
 
+//nolint:funlen
 func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	slog.Info("🚀 tfsketch starting...")
 
 	setLogger(cli.Flag("debug"))
-	terraformPath, resourceType, outputFile, overridesPath, onlyRoot, includeFilenames := getGenArgsAndFlags(cli)
+	terraformPath, pathIncludeRegexp, pathExcludeRegexp, typeRegexp, nameRegexp,
+		displayAttributes, outputFile, overridesPath, cachePath, onlyRoot, includeFilenames,
+		minify, module := getGenArgsAndFlags(cli)
+
+	var cache *tfpath.Cache
+	if cachePath != "" {
+		cache = tfpath.NewCache(cachePath)
+	}
 
 	container := tfpath.NewContainer()
 
-	traverser := tfpath.NewTraverser(container, resourceType)
+	traverser := tfpath.NewTraverser(
+		container,
+		pathIncludeRegexp,
+		pathExcludeRegexp,
+		typeRegexp,
+		nameRegexp,
+		displayAttributes,
+		cache,
+	)
 
 	var err error
 
 	// overrides
 	if overridesPath != "" {
 		overrides := &overrides.Overrides{}
-		err = overrides.ReadFromFile(overridesPath)
+
+		err := overrides.ReadFromFile(overridesPath)
 		if err != nil {
-			slog.Error(fmt.Sprintf("❌ Error reading overrides from file: %s", err.Error()))
+			slog.Error("❌ Error reading overrides from file: " + err.Error())
+
 			return exitCodeErrReadingOverridesFromFile
 		}
 
+		err = container.WalkOverrides(overrides, traverser, cache)
+		if err != nil {
+			return exitCodeErrTraversingOverrides
+		}
+
 		externalModulesNum := len(overrides.ExternalModules)
-		slog.Info(fmt.Sprintf("🔸 External modules number in overrides file: %d", externalModulesNum))
-
-		for _, externalModule := range overrides.ExternalModules {
-			tfPath := tfpath.NewTfPath(externalModule.Local, externalModule.Remote)
-			container.AddPath(tfPath.TraverseName, tfPath)
-
-			isSubModule := isExternalModuleASubModule(externalModule.Remote)
-
-			err := traverser.WalkPath(tfPath, !isSubModule)
-			if err != nil {
-				slog.Error(fmt.Sprintf("❌ Error walking dirs in overrides local path 📁%s: %s", externalModule.Local, err.Error()))
-
-				return exitCodeErrTraversingOverrides
-			}
-		}
-	}
-
-	// as of now, use paths in container
-	for pathName, tfPath := range container.Paths {
-		err := traverser.ParsePath(tfPath)
-		if err != nil {
-			slog.Error(fmt.Sprintf("❌ Error parsing container terraform path 📁%s (%s) : %s", tfPath.Path, pathName, err.Error()))
-
-			return exitCodeErrParsingContainerPaths
-		}
-	}
-
-	for pathName, tfPath := range container.Paths {
-		err = traverser.LinkPath(tfPath)
-		if err != nil {
-			slog.Error(fmt.Sprintf("❌ Error linking local modules in terraform path 📁%s (%s) : %s", tfPath.Path, pathName, err.Error()))
-
-			return exitCodeErrLinkingContainerPaths
-		}
+		slog.Info(
+			fmt.Sprintf("🔸 External modules number in overrides file: %d", externalModulesNum),
+		)
 	}
 
 	// path
@@ -108,30 +181,40 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 
 	err = traverser.WalkPath(rootTfPath, false)
 	if err != nil {
-		slog.Error(fmt.Sprintf("❌ Error walking dirs in terraform path 📁%s: %s", rootTfPath.Path, err.Error()))
+		slog.Error(
+			fmt.Sprintf(
+				"❌ Error walking dirs in terraform path 📁%s: %s",
+				rootTfPath.Path,
+				err.Error(),
+			),
+		)
 
 		return exitCodeErrTraversingOverrides
 	}
 
-	err = traverser.ParsePath(rootTfPath)
+	// as of now, use paths in container
+	err = container.ParsePaths(traverser, cache, 1)
 	if err != nil {
-		slog.Error(fmt.Sprintf("❌ Error parsing terraform path 📁%s (%s) : %s", rootTfPath.Path, rootTfPathName, err.Error()))
-
-		return exitCodeErrParsingTerraformPath
+		return exitCodeErrParsingContainerPaths
 	}
 
-	err = traverser.LinkPath(rootTfPath)
+	err = container.LinkPaths(traverser)
 	if err != nil {
-		slog.Error(fmt.Sprintf("❌ Error linking local modules in terraform path 📁%s (%s) : %s", rootTfPath.Path, rootTfPathName, err.Error()))
-
-		return exitCodeErrLinkingTerraformPath
+		return exitCodeErrLinkingContainerPaths
 	}
 
-	flowchart := chart.NewMermaidFlowChart(onlyRoot, includeFilenames)
+	flowchart := chart.NewMermaidFlowChart(onlyRoot, includeFilenames, minify, module)
 
-	err = flowchart.Generate(rootTfPath, resourceType, outputFile)
+	err = flowchart.Generate(rootTfPath, outputFile)
 	if err != nil {
-		slog.Error(fmt.Sprintf("❌ Error generating chart from terraform path 📁%s (%s) : %s", rootTfPath.Path, rootTfPathName, err.Error()))
+		slog.Error(
+			fmt.Sprintf(
+				"❌ Error generating chart from terraform path 📁%s (%s) : %s",
+				rootTfPath.Path,
+				rootTfPathName,
+				err.Error(),
+			),
+		)
 
 		return exitCodeErrGeneratingChart
 	}
@@ -139,32 +222,57 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	return 0
 }
 
-func getGenArgsAndFlags(cli *broccli.Broccli) (string, string, string, string, bool, bool) {
+//
+//nolint:goconst
+func getGenArgsAndFlags(
+	cli *broccli.Broccli,
+) (string, string, string, string, string, string, string, string, string, bool, bool, bool, bool) {
 	terraformPath := cli.Arg("path")
-	resourceType := cli.Arg("type")
 	outputFile := cli.Arg("output")
+	pathIncludeRegexp := cli.Flag("path-include-regexp")
+	pathExcludeRegexp := cli.Flag("path-exclude-regexp")
+	typeRegexp := cli.Flag("type-regexp")
+	nameRegexp := cli.Flag("name-regexp")
 	overrides := cli.Flag("overrides")
 	onlyRoot := cli.Flag("only-root")
 	includeFilenames := cli.Flag("include-filenames")
+	minify := cli.Flag("minify")
+	module := cli.Flag("module")
+	displayAttributes := cli.Flag("display-attributes")
+	cache := cli.Flag("cache")
 
-	slog.Info(fmt.Sprintf("✨ Terraform path to scan:          %s", terraformPath))
-	slog.Info(fmt.Sprintf("✨ Resource type to find:           %s", resourceType))
-	slog.Info(fmt.Sprintf("✨ Output diagram destination:      %s", outputFile))
-	slog.Info(fmt.Sprintf("✨ External modules overrides file: %s", overrides))
-	slog.Info(fmt.Sprintf("✨ Draw only root path:             %s", onlyRoot))
-	slog.Info(fmt.Sprintf("✨ Include source filename:         %s", includeFilenames))
-
-	onlyRootBool := false
-	if onlyRoot == "true" {
-		onlyRootBool = true
+	if typeRegexp == "" {
+		typeRegexp = "^.*$"
 	}
 
-	includeFilenamesBool := false
-	if includeFilenames == "true" {
-		includeFilenamesBool = true
+	if nameRegexp == "" {
+		nameRegexp = "^.*$"
 	}
 
-	return terraformPath, resourceType, outputFile, overrides, onlyRootBool, includeFilenamesBool
+	if pathIncludeRegexp == "" {
+		pathIncludeRegexp = "^.*$"
+	}
+
+	if pathExcludeRegexp == "" {
+		pathExcludeRegexp = "^SillyName$"
+	}
+
+	slog.Info("✨ Terraform path to scan:          " + terraformPath)
+	slog.Info("✨ Include path regexp:             " + pathIncludeRegexp)
+	slog.Info("✨ Exclude path regexp:             " + pathExcludeRegexp)
+	slog.Info("✨ Resource type regexp:            " + typeRegexp)
+	slog.Info("✨ Resource name regexp:            " + nameRegexp)
+	slog.Info("✨ Display attributes:              " + displayAttributes)
+	slog.Info("✨ Output diagram destination:      " + outputFile)
+	slog.Info("✨ External modules overrides file: " + overrides)
+	slog.Info("✨ Draw only root path:             " + onlyRoot)
+	slog.Info("✨ Include source filename:         " + includeFilenames)
+	slog.Info("✨ Minify element names:            " + minify)
+	slog.Info("✨ Draw 'modules' sub-directory:    " + module)
+	slog.Info("✨ Cache path:                      " + cache)
+
+	return terraformPath, pathIncludeRegexp, pathExcludeRegexp, typeRegexp, nameRegexp, displayAttributes, outputFile,
+		overrides, cache, onlyRoot == "true", includeFilenames == "true", minify == "true", module == "true"
 }
 
 func setLogger(debug string) {
@@ -174,8 +282,4 @@ func setLogger(debug string) {
 	}
 
 	slog.SetLogLoggerLevel(logLevel)
-}
-
-func isExternalModuleASubModule(module string) bool {
-	return strings.Contains(module, "//modules/")
 }
