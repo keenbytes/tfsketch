@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/mikolajgasior/tfsketch/internal/overrides"
+	"tfsketch/internal/overrides"
 )
 
 var (

@@ -7,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/mikolajgasior/tfsketch/internal/remotetolocal"
 	yaml "gopkg.in/yaml.v2"
+	"tfsketch/internal/remotetolocal"
 )
 
 // Overrides represents a YAML file that contains local paths where external Terraform module are meant to be found.

@@ -17,16 +17,6 @@ Example diagram generated from tests/03-external-modules using tests/external-mo
 mmdc -i tmp/03-external-modules.mmd -o tmp/03-external-modules.mmd.svg --configFile=tests/config.json
 ```
 
-**Alternatively with docker**:
-```
-docker run \
-  -w / \
-  -v $(pwd)/tests:/tests \
-  -v $(pwd)/tmp:/output \
-  mikolajgasior/tfsketch:v0.9.0 \
-  gen -o /tests/external-modules.yml -t '^type$' /tests/03-external-modules /output/03-external-modules.mmd
-```
-
 Check `tests` directory for more examples.
 
 ## Building
@@ -36,38 +26,30 @@ go build .
 ```
 
 ## Running
-Check below help message for `gen` command:
+Check below help message for `gen -h` command:
+````
+Generate diagrams based on Terraform files
 
-    Usage:  tfsketch gen [FLAGS] DIR FILE
-    
-    Generate diagram
-    
-    Optional flags: 
+Usage:
+tfsketch gen [flags]
 
-    -c,  --cache DIR                            Path to directory where modules will be downloaded and cached
-    -d,  --debug                                Enable debug mode
-    -a,  --display-attributes ATTR1,ATTR2,...   Comma-separated resource attributes; the first found is used as the chart’s display name
-    -f,  --include-filenames                    Display source filenames on the diagram
-    -s,  --minify                               Minify element names in the chart to save space
-    -m,  --module                               Treat path as module and draw 'modules' sub-directory
-    -n,  --name-regexp REGEXP                   Regular expression to filter name of the resource
-    -r,  --only-root                            Draw only root directory
-    -o,  --overrides FILE                       YAML file mapping external modules to local paths
-    -t,  --type-regexp REGEXP                   Regular expression to filter type of the resource
-    -e,  --path-exclude-regexp REGEXP           Regular expression to exclude paths
-    -i,  --path-include-regexp REGEXP           Regular expression to include paths
-
-The command accepts three arguments:
-
-* `DIR` – Path to the Terraform code to scan.
-* `FILE` – Output Mermaid chart file name.
-
-### Using docker
-A Docker image is also available, though it requires binding local volumes.
-
-```
-docker run --platform linux/amd64 mikolajgasior/tfsketch:v0.9.0 gen -h
-```
+Flags:
+-c, --cache string                 Path to directory where modules will be downloaded and cached
+-d, --debug                        Enable debug mode
+-a, --display-attributes string    Comma-separated resource attributes; the first found is used as the chart’s display name
+-h, --help                         help for gen
+-f, --include-filenames            Display source filenames on the diagram
+-s, --minify                       Minify element names in the chart to save space
+-m, --module                       Treat path as module and draw 'modules' sub-directory
+-n, --name-regexp string           Regular expression to filter name of the resource (default "^.*$")
+-r, --only-root                    Draw only root directory
+--output string                Path to an output file (required)
+-o, --overrides string             YAML file mapping external modules to local paths
+--path string                  Path to directory with terraform code (required)
+-e, --path-exclude-regexp string   Regular expression to exclude paths (default "^SillyName$")
+-i, --path-include-regexp string   Regular expression to include paths (default "^.*$")
+-t, --type-regexp string           Regular expression to filter type of the resource (default "^.*$")
+````
 
 ## Motivation
 **tfsketch** began as a small helper tool for navigating repositories packed with complex Terraform code, particularly in cases where specific resources—such as AWS IAM roles—needed to be refactored. It was also designed for situations where multiple repositories were being standardised to follow a consistent structure. By using the tool, it becomes easier to visualise repository contents and analyse their structure.

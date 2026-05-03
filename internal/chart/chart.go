@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/mikolajgasior/tfsketch/pkg/tfpath"
+	"tfsketch/internal/tfpath"
 )
 
 const config = `---

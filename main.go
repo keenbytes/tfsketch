@@ -7,10 +7,10 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/mikolajgasior/broccli/v3"
-	"github.com/mikolajgasior/tfsketch/internal/overrides"
-	"github.com/mikolajgasior/tfsketch/pkg/chart"
-	"github.com/mikolajgasior/tfsketch/pkg/tfpath"
+	"github.com/spf13/cobra"
+	"tfsketch/internal/chart"
+	"tfsketch/internal/overrides"
+	"tfsketch/internal/tfpath"
 )
 
 const (
@@ -23,115 +23,97 @@ const (
 
 //nolint:funlen
 func main() {
-	cli := broccli.NewBroccli(
-		"tfsketch",
-		"Generate diagram from Terraform files",
-		"Mikołaj Gąsior <m@gasior.dev>",
-	)
+	rootCmd := &cobra.Command{
+		Use:   "tfsketch",
+		Short: "Generate diagram from Terraform files",
+		Long:  "tfsketch generates diagrams from Terraform files",
+	}
 
-	cmd := cli.Command("gen", "Generate diagram", genHandler)
-	cmd.Arg(
-		"path",
-		"DIR",
-		"Path to directory with terraform code",
-		broccli.TypePathFile,
-		broccli.IsDirectory|broccli.IsExistent|broccli.IsRequired,
-	)
-	cmd.Arg("output", "FILE", "Path to an output file", broccli.TypePathFile, broccli.IsRequired)
-	cmd.Flag(
-		"path-include-regexp",
-		"i",
-		"REGEXP",
-		"Regular expression to include paths",
-		broccli.TypeString,
-		0,
-	)
-	cmd.Flag(
-		"path-exclude-regexp",
-		"e",
-		"REGEXP",
-		"Regular expression to exclude paths",
-		broccli.TypeString,
-		0,
-	)
-	cmd.Flag(
-		"type-regexp",
-		"t",
-		"REGEXP",
-		"Regular expression to filter type of the resource",
-		broccli.TypeString,
-		0,
-	)
-	cmd.Flag(
-		"name-regexp",
-		"n",
-		"REGEXP",
-		"Regular expression to filter name of the resource",
-		broccli.TypeString,
-		0,
-	)
-	cmd.Flag(
-		"display-attributes",
-		"a",
-		"ATTR1,ATTR2,...",
+	var terraformPath string
+	var outputFile string
+	var pathIncludeRegexp, pathExcludeRegexp, typeRegexp, nameRegexp, displayAttributes string
+	var overridesPath, cachePath string
+	var debug, onlyRoot, includeFilenames, minify, module bool
+
+	genCmd := &cobra.Command{
+		Use:   "gen",
+		Short: "Generate diagram",
+		Long:  "Generate diagrams based on Terraform files",
+		Run: func(cmd *cobra.Command, args []string) {
+			os.Exit(genHandler(cmd.Context(), debug, terraformPath, pathIncludeRegexp, pathExcludeRegexp, typeRegexp, nameRegexp, displayAttributes, outputFile, overridesPath, cachePath, onlyRoot, includeFilenames, minify, module))
+		},
+	}
+
+	genCmd.PersistentFlags().StringVarP(&terraformPath, "path", "", "", "Path to directory with terraform code (required)")
+	genCmd.MarkPersistentFlagRequired("path")
+	genCmd.MarkPersistentFlagDirname("path")
+
+	genCmd.PersistentFlags().StringVarP(&outputFile, "output", "", "", "Path to an output file (required)")
+	genCmd.MarkPersistentFlagRequired("output")
+	genCmd.MarkPersistentFlagFilename("output")
+
+	genCmd.Flags().StringVarP(&pathIncludeRegexp, "path-include-regexp", "i", "^.*$", "Regular expression to include paths")
+	genCmd.Flags().StringVarP(&pathExcludeRegexp, "path-exclude-regexp", "e", "^SillyName$", "Regular expression to exclude paths")
+	genCmd.Flags().StringVarP(&typeRegexp, "type-regexp", "t", "^.*$", "Regular expression to filter type of the resource")
+	genCmd.Flags().StringVarP(&nameRegexp, "name-regexp", "n", "^.*$", "Regular expression to filter name of the resource")
+
+	genCmd.Flags().StringVarP(
+		&displayAttributes, "display-attributes", "a", "",
 		"Comma-separated resource attributes; the first found is used as the chart’s display name",
-		broccli.TypeAlphanumeric,
-		broccli.AllowHyphen|broccli.AllowUnderscore|broccli.AllowMultipleValues,
 	)
-	cmd.Flag(
-		"overrides",
-		"o",
-		"FILE",
-		"YAML file mapping external modules to local paths",
-		broccli.TypePathFile,
-		broccli.IsRegularFile,
-	)
-	cmd.Flag(
-		"cache",
-		"c",
-		"DIR",
-		"Path to directory where modules will be downloaded and cached",
-		broccli.TypePathFile,
-		broccli.IsDirectory|broccli.IsExistent,
-	)
-	cmd.Flag("debug", "d", "", "Enable debug mode", broccli.TypeBool, 0)
-	cmd.Flag("only-root", "r", "", "Draw only root directory", broccli.TypeBool, 0)
-	cmd.Flag(
-		"include-filenames",
-		"f",
-		"",
-		"Display source filenames on the diagram",
-		broccli.TypeBool,
-		0,
-	)
-	cmd.Flag(
-		"minify",
-		"s",
-		"",
-		"Minify element names in the chart to save space",
-		broccli.TypeBool,
-		0,
-	)
-	cmd.Flag(
-		"module",
-		"m",
-		"",
-		"Treat path as module and draw 'modules' sub-directory",
-		broccli.TypeBool,
-		0,
-	)
+	genCmd.Flags().StringVarP(&overridesPath, "overrides", "o", "", "YAML file mapping external modules to local paths")
+	genCmd.Flags().StringVarP(&cachePath, "cache", "c", "", "Path to directory where modules will be downloaded and cached")
 
-	os.Exit(cli.Run(context.Background()))
+	genCmd.Flags().BoolVarP(&debug, "debug", "d", false, "Enable debug mode")
+	genCmd.Flags().BoolVarP(&onlyRoot, "only-root", "r", false, "Draw only root directory")
+	genCmd.Flags().BoolVarP(&includeFilenames, "include-filenames", "f", false, "Display source filenames on the diagram")
+	genCmd.Flags().BoolVarP(&minify, "minify", "s", false, "Minify element names in the chart to save space")
+	genCmd.Flags().BoolVarP(&module, "module", "m", false, "Treat path as module and draw 'modules' sub-directory")
+	rootCmd.AddCommand(genCmd)
+
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println("Command execution error:", err)
+		os.Exit(1)
+	}
 }
 
 //nolint:funlen
-func genHandler(_ context.Context, cli *broccli.Broccli) int {
+func genHandler(_ context.Context, debug bool, terraformPath, pathIncludeRegexp, pathExcludeRegexp, typeRegexp, nameRegexp,
+	displayAttributes, outputFile, overridesPath, cachePath string, onlyRoot, includeFilenames,
+	minify, module bool) int {
 	slog.Info("🚀 tfsketch starting...")
 
-	setLogger(cli.Flag("debug"))
-	terraformPath, pathIncludeRegexp, pathExcludeRegexp, typeRegexp, nameRegexp,
-		displayAttributes, outputFile, overridesPath, cachePath, onlyRoot, includeFilenames,
-		minify, module := getGenArgsAndFlags(cli)
+	if typeRegexp == "" {
+		typeRegexp = "^.*$"
+	}
+
+	if nameRegexp == "" {
+		nameRegexp = "^.*$"
+	}
+
+	if pathIncludeRegexp == "" {
+		pathIncludeRegexp = "^.*$"
+	}
+
+	if pathExcludeRegexp == "" {
+		pathExcludeRegexp = "^SillyName$"
+	}
+
+	slog.Info("✨ Terraform path to scan:          " + terraformPath)
+	slog.Info("✨ Include path regexp:             " + pathIncludeRegexp)
+	slog.Info("✨ Exclude path regexp:             " + pathExcludeRegexp)
+	slog.Info("✨ Resource type regexp:            " + typeRegexp)
+	slog.Info("✨ Resource name regexp:            " + nameRegexp)
+	slog.Info("✨ Display attributes:              " + displayAttributes)
+	slog.Info("✨ Output diagram destination:      " + outputFile)
+	slog.Info("✨ External modules overrides file: " + overridesPath)
+	slog.Info("✨ Draw only root path:             " + fmt.Sprintf("%v", onlyRoot))
+	slog.Info("✨ Include source filename:         " + fmt.Sprintf("%v", includeFilenames))
+	slog.Info("✨ Minify element names:            " + fmt.Sprintf("%v", minify))
+	slog.Info("✨ Draw 'modules' sub-directory:    " + fmt.Sprintf("%v", module))
+	slog.Info("✨ Cache path:                      " + cachePath)
+
+	setLogger(debug)
 
 	var cache *tfpath.Cache
 	if cachePath != "" {
@@ -222,62 +204,9 @@ func genHandler(_ context.Context, cli *broccli.Broccli) int {
 	return 0
 }
 
-//
-//nolint:goconst
-func getGenArgsAndFlags(
-	cli *broccli.Broccli,
-) (string, string, string, string, string, string, string, string, string, bool, bool, bool, bool) {
-	terraformPath := cli.Arg("path")
-	outputFile := cli.Arg("output")
-	pathIncludeRegexp := cli.Flag("path-include-regexp")
-	pathExcludeRegexp := cli.Flag("path-exclude-regexp")
-	typeRegexp := cli.Flag("type-regexp")
-	nameRegexp := cli.Flag("name-regexp")
-	overrides := cli.Flag("overrides")
-	onlyRoot := cli.Flag("only-root")
-	includeFilenames := cli.Flag("include-filenames")
-	minify := cli.Flag("minify")
-	module := cli.Flag("module")
-	displayAttributes := cli.Flag("display-attributes")
-	cache := cli.Flag("cache")
-
-	if typeRegexp == "" {
-		typeRegexp = "^.*$"
-	}
-
-	if nameRegexp == "" {
-		nameRegexp = "^.*$"
-	}
-
-	if pathIncludeRegexp == "" {
-		pathIncludeRegexp = "^.*$"
-	}
-
-	if pathExcludeRegexp == "" {
-		pathExcludeRegexp = "^SillyName$"
-	}
-
-	slog.Info("✨ Terraform path to scan:          " + terraformPath)
-	slog.Info("✨ Include path regexp:             " + pathIncludeRegexp)
-	slog.Info("✨ Exclude path regexp:             " + pathExcludeRegexp)
-	slog.Info("✨ Resource type regexp:            " + typeRegexp)
-	slog.Info("✨ Resource name regexp:            " + nameRegexp)
-	slog.Info("✨ Display attributes:              " + displayAttributes)
-	slog.Info("✨ Output diagram destination:      " + outputFile)
-	slog.Info("✨ External modules overrides file: " + overrides)
-	slog.Info("✨ Draw only root path:             " + onlyRoot)
-	slog.Info("✨ Include source filename:         " + includeFilenames)
-	slog.Info("✨ Minify element names:            " + minify)
-	slog.Info("✨ Draw 'modules' sub-directory:    " + module)
-	slog.Info("✨ Cache path:                      " + cache)
-
-	return terraformPath, pathIncludeRegexp, pathExcludeRegexp, typeRegexp, nameRegexp, displayAttributes, outputFile,
-		overrides, cache, onlyRoot == "true", includeFilenames == "true", minify == "true", module == "true"
-}
-
-func setLogger(debug string) {
+func setLogger(debug bool) {
 	logLevel := slog.LevelInfo
-	if debug == "true" {
+	if debug {
 		logLevel = slog.LevelDebug
 	}
 
